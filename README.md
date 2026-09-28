@@ -1,1 +1,8 @@
 # mltoy
+echo "# mltoy" >> README.md
+git init
+git add README.md
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/huangwei0123/mltoy.git
+git push -u origin main
