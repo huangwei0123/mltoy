@@ -1,0 +1,22 @@
+Dataset:
+era5-t2m-5deg.zarr
+
+Input:
+48 hours history (8 x 6h)
+
+Output:
+72 hours forecast (12 x 6h)
+
+Resolution:
+5°
+
+Training:
+CPU
+
+Features:
+- Temperature
+- sin(hour)
+- cos(hour)
+- sin(day_of_year)
+- cos(day_of_year)
+- latitude
