@@ -1,0 +1,22 @@
+Metadata-Version: 2.4
+Name: mltoy
+Version: 0.1.0
+Summary: ERA5 temperature forecasting using U-Net
+Requires-Python: >=3.12
+Description-Content-Type: text/markdown
+Requires-Dist: numpy
+Requires-Dist: xarray
+Requires-Dist: zarr
+Requires-Dist: pandas
+Requires-Dist: torch
+Requires-Dist: netcdf4
+Requires-Dist: dask
+
+# mltoy
+echo "# mltoy" >> README.md
+git init
+git add README.md
+git commit -m "first commit"
+git branch -M main
+git remote add origin https://github.com/huangwei0123/mltoy.git
+git push -u origin main

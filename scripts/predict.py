@@ -1,379 +1,417 @@
-# scripts/predict.py
+#!/usr/bin/env python
+
+import argparse
 
 import numpy as np
 import pandas as pd
-import xarray as xr
 import torch
-import torch.nn as nn
+import xarray as xr
 
-from pathlib import Path
+from models.forecast_unet import ForecastUNet
+from utils.feature_builder import FeatureBuilder
 
+from datetime import datetime
 
-#########################################################################
-# CONFIG
-#########################################################################
-
-CHECKPOINT = "models/t2m_cpu.pt"
-DATASET = "data/era5-t2m-5deg.zarr"
-
-OUTPUT_DIR = Path("forecasts")
-OUTPUT_DIR.mkdir(exist_ok=True)
-
-
-#########################################################################
-# LOAD CHECKPOINT
-#########################################################################
-
-print("Loading checkpoint...")
-
-ckpt = torch.load(
-    CHECKPOINT,
-    map_location="cpu",
-    weights_only=False
-)
-
-mean = float(ckpt["mean"])
-std = float(ckpt["std"])
-
-HISTORY = int(ckpt["history"])
-FORECAST = int(ckpt["forecast"])
-
-print(f"HISTORY  = {HISTORY}")
-print(f"FORECAST = {FORECAST}")
-print(f"MEAN     = {mean}")
-print(f"STD      = {std}")
-
-
-#########################################################################
-# MODEL
-#########################################################################
-
-INPUT_CHANNELS = HISTORY + 5
-
-
-class ForecastCNN(nn.Module):
-
-    def __init__(self):
-
-        super().__init__()
-
-        self.net = nn.Sequential(
-
-            nn.Conv2d(
-                INPUT_CHANNELS,
-                64,
-                kernel_size=3,
-                padding=1
-            ),
-
-            nn.ReLU(),
-
-            nn.Conv2d(
-                64,
-                128,
-                kernel_size=3,
-                padding=1
-            ),
-
-            nn.ReLU(),
-
-            nn.Conv2d(
-                128,
-                128,
-                kernel_size=3,
-                padding=1
-            ),
-
-            nn.ReLU(),
-
-            nn.Conv2d(
-                128,
-                FORECAST,
-                kernel_size=1
-            )
-        )
-
-    def forward(self, x):
-
-        return self.net(x)
-
-
-#########################################################################
-# LOAD DATA
-#########################################################################
-
-print("\nLoading dataset...")
-
-ds = xr.open_zarr(DATASET)
-
-print(ds)
-
-temp = ds["t2m"].values.astype(np.float32)
-
-times = ds["valid_time"].to_index()
-
-latitudes = ds["latitude"].values
-longitudes = ds["longitude"].values
-
-init_time = pd.Timestamp(
-    ds["valid_time"].values[-1]
-)
-
-print("\nForecast init time:")
-print(init_time)
-
-print("\nTemperature shape:")
-print(temp.shape)
-
-
-#########################################################################
-# NORMALIZE
-#########################################################################
-
-temp_norm = (
-    temp - mean
-) / std
-
-
-#########################################################################
-# HISTORY TEMPERATURES
-#########################################################################
-
-INIT_TIME = "2026-09-01 00:00:00"
-
-init_time = pd.Timestamp(INIT_TIME)
-
-idx = times.get_loc(init_time)
-
-temp_stack = temp_norm[
-    idx - HISTORY + 1:
-    idx + 1
-]
-
-current_time = times[idx]
-
-#########################################################################
-# TIME FEATURES
-#########################################################################
-
-hour = current_time.hour
-doy = current_time.dayofyear
-
-sin_hour = np.sin(
-    2.0 * np.pi * hour / 24.0
-).astype(np.float32)
-
-cos_hour = np.cos(
-    2.0 * np.pi * hour / 24.0
-).astype(np.float32)
-
-sin_doy = np.sin(
-    2.0 * np.pi * doy / 365.25
-).astype(np.float32)
-
-cos_doy = np.cos(
-    2.0 * np.pi * doy / 365.25
-).astype(np.float32)
-
-
-#########################################################################
-# LATITUDE FEATURE
-#########################################################################
-
-lat_norm = (
-    latitudes / 90.0
-).astype(np.float32)
-
-lat_grid = np.repeat(
-    lat_norm[:, None],
-    len(longitudes),
-    axis=1
-)
-
-
-#########################################################################
-# CONSTANT FEATURE MAPS
-#########################################################################
-
-nlat = len(latitudes)
-nlon = len(longitudes)
-
-sh = np.full(
-    (1, nlat, nlon),
-    sin_hour,
-    dtype=np.float32
-)
-
-ch = np.full(
-    (1, nlat, nlon),
-    cos_hour,
-    dtype=np.float32
-)
-
-sd = np.full(
-    (1, nlat, nlon),
-    sin_doy,
-    dtype=np.float32
-)
-
-cd = np.full(
-    (1, nlat, nlon),
-    cos_doy,
-    dtype=np.float32
-)
-
-lat = lat_grid[np.newaxis, :, :]
-
-
-#########################################################################
-# BUILD INPUT
-#########################################################################
-
-x_input = np.concatenate(
-    [
-        temp_stack,
-        sh,
-        ch,
-        sd,
-        cd,
-        lat
-    ],
-    axis=0
-)
-
-print("\nInput channels:")
-print(x_input.shape)
-
-# Expected:
-# (13, 36, 72)
-
-x = torch.tensor(
-    x_input,
-    dtype=torch.float32
-).unsqueeze(0)
-
-print("\nModel input shape:")
-print(x.shape)
-
-# Expected:
-# (1, 13, 36, 72)
-
-
-#########################################################################
-# LOAD MODEL
-#########################################################################
-
-print("\nLoading model...")
-
-model = ForecastCNN()
-
-model.load_state_dict(
-    ckpt["model_state_dict"]
-)
-
-model.eval()
-
-print("Model loaded successfully")
-
-
-#########################################################################
-# FORECAST
-#########################################################################
-
-print("\nRunning forecast...")
-
-with torch.no_grad():
-
-    forecast = model(x)
-
-forecast = forecast.numpy()[0]
-
-forecast = (
-    forecast * std
-) + mean
-
-print("\nForecast shape:")
-print(forecast.shape)
-
-# Expected:
-# (12, 36, 72)
-
-
-#########################################################################
-# LEAD TIMES
-#########################################################################
-
-lead_hours = np.arange(
-    6,
-    FORECAST * 6 + 1,
-    6
-)
-
-valid_times = (
-    init_time
-    + pd.to_timedelta(
-        lead_hours,
-        unit="h"
+def log(msg):
+    print(
+        f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] {msg}",
+        flush=True
     )
-)
 
+class Predictor:
 
-#########################################################################
-# CREATE DATASET
-#########################################################################
+    def __init__(
+        self,
+        checkpoint_file,
+        device="cpu"
+    ):
 
-forecast_ds = xr.Dataset(
-    {
-        "t2m_forecast": (
-            (
-                "lead_time",
-                "latitude",
-                "longitude"
-            ),
-            forecast
+        self.device = device
+
+        print(
+            f"Loading checkpoint: "
+            f"{checkpoint_file}"
         )
-    },
-    coords={
-        "lead_time": lead_hours,
-        "valid_time": (
-            "lead_time",
-            valid_times
-        ),
-        "latitude": latitudes,
-        "longitude": longitudes,
-    }
-)
+        log(f"Loading checkpoint: {checkpoint_file}")
 
-forecast_ds["t2m_forecast"].attrs = {
-    "units": "K",
-    "long_name": "2 metre temperature forecast"
-}
+        checkpoint = torch.load(
+            checkpoint_file,
+            map_location=device,
+            weights_only=False
+        )
 
-forecast_ds.attrs["forecast_init_time"] = str(
-    init_time
-)
+        self.mean = checkpoint["mean"]
+        self.std = checkpoint["std"]
 
-forecast_ds.attrs["history_steps"] = HISTORY
-forecast_ds.attrs["forecast_steps"] = FORECAST
+        self.history = checkpoint["history"]
+        self.forecast = checkpoint["forecast"]
+
+        self.model = ForecastUNet(
+            input_channels=self.history + 5,
+            forecast_steps=self.forecast
+        ).to(device)
+
+        self.model.load_state_dict(
+            checkpoint["model_state_dict"]
+        )
+
+        self.model.eval()
+
+        print(
+            f"Loaded model "
+            f"(history={self.history}, "
+            f"forecast={self.forecast})"
+        )
+        log(f"Loaded model history={self.history}, forecast={self.forecast}")
+
+    def predict(self, x):
+
+        with torch.no_grad():
+
+            x = x.to(self.device)
+
+            y = self.model(x)
+
+        return y.cpu().numpy()
 
 
-#########################################################################
-# SAVE NETCDF
-#########################################################################
+def build_input_tensor(
+    ds,
+    predictor,
+    start_time=None
+):
 
-timestamp = init_time.strftime(
-    "%Y%m%d_%H%M"
-)
+    temp = ds["t2m"].values.astype(
+        np.float32
+    )
 
-outfile = (
-    OUTPUT_DIR
-    / f"forecast_{timestamp}.nc"
-)
+    if "valid_time" in ds.coords:
+        time_coord = "valid_time"
+    elif "time" in ds.coords:
+        time_coord = "time"
+    else:
+        raise ValueError(
+            "No time coordinate found"
+        )
 
-forecast_ds.to_netcdf(outfile)
+    times = pd.to_datetime(
+        ds[time_coord].values
+    )
 
-print("\nForecast saved:")
-print(outfile)
+    history = predictor.history
 
-print("\nForecast Dataset:")
-print(forecast_ds)
+    if start_time is None:
+
+        current_idx = len(times) - 1
+
+    else:
+
+        init_time = pd.to_datetime(
+            start_time,
+            format="%Y%m%d-%H%M"
+        )
+
+        matches = np.where(
+            times == init_time
+        )[0]
+
+        if len(matches) == 0:
+            raise ValueError(
+                f"Initialization time "
+                f"{init_time} not found "
+                f"in dataset"
+            )
+
+        current_idx = matches[0]
+
+    if current_idx < history - 1:
+        raise ValueError(
+            "Not enough history available"
+        )
+
+    temp = (
+        temp - predictor.mean
+    ) / predictor.std
+
+    temp_stack = temp[
+        current_idx - history + 1:
+        current_idx + 1
+    ]
+
+    (
+        sin_hour,
+        cos_hour,
+        sin_doy,
+        cos_doy
+    ) = FeatureBuilder.build_time_features(
+        times
+    )
+
+    nlat = temp.shape[1]
+    nlon = temp.shape[2]
+
+    sh = np.full(
+        (1, nlat, nlon),
+        sin_hour[current_idx],
+        dtype=np.float32
+    )
+
+    ch = np.full(
+        (1, nlat, nlon),
+        cos_hour[current_idx],
+        dtype=np.float32
+    )
+
+    sd = np.full(
+        (1, nlat, nlon),
+        sin_doy[current_idx],
+        dtype=np.float32
+    )
+
+    cd = np.full(
+        (1, nlat, nlon),
+        cos_doy[current_idx],
+        dtype=np.float32
+    )
+
+    lat_grid = (
+        FeatureBuilder.build_latitude_feature(
+            ds["latitude"].values,
+            len(ds["longitude"])
+        )
+    )
+
+    lat = lat_grid[np.newaxis, :, :]
+
+    x = np.concatenate(
+        [
+            temp_stack,
+            sh,
+            ch,
+            sd,
+            cd,
+            lat
+        ],
+        axis=0
+    )
+
+    x = torch.tensor(
+        x,
+        dtype=torch.float32
+    )
+
+    x = x.unsqueeze(0)
+
+    return x
+
+def save_forecast(
+    ds,
+    forecast,
+    output_file,
+    predictor,
+    start_time=None
+):
+    # Denormalize
+    forecast = (
+        forecast * predictor.std
+        + predictor.mean
+    )
+
+    forecast = forecast[0]
+
+    # Detect time coordinate
+    if "valid_time" in ds.coords:
+        time_coord = "valid_time"
+    elif "time" in ds.coords:
+        time_coord = "time"
+    else:
+        raise ValueError(
+            "No time coordinate found "
+            "(expected 'valid_time' or 'time')."
+        )
+
+    times_in = pd.to_datetime(
+        ds[time_coord].values
+    )
+
+    if len(times_in) < 2:
+        raise ValueError(
+            "Need at least two timestamps "
+            "to determine forecast interval."
+        )
+
+    # Compute all intervals
+    # intervals = np.diff(times_in)
+
+    # Use the most recent interval
+    # freq = pd.Timedelta(intervals[-1])
+
+    times_in = pd.to_datetime(
+        ds[time_coord].values
+    )
+
+    if len(times_in) < 2:
+        freq = pd.Timedelta(hours=6)
+    else:
+        intervals = np.diff(times_in)
+
+        freq = pd.to_timedelta(
+            intervals[-1]
+        )
+
+        if not np.all(
+            intervals == intervals[0]
+        ):
+            print(
+                "WARNING: irregular time spacing detected"
+            )
+
+    print(f"Detected interval: {freq}")
+
+    # Warn about irregular spacing
+    if not np.all(intervals == intervals[0]):
+        print(
+            "WARNING: Irregular time intervals detected. "
+            "Using latest interval:",
+            freq
+        )
+        log(
+            f"Irregular intervals detected. "
+            f"Using interval {freq}"
+        )
+
+    if start_time is None:
+        last_time = pd.Timestamp(times_in[-1])
+    else:
+        last_time = pd.to_datetime(start_time, format="%Y%m%d-%H%M")
+
+    print(f"Detected interval: {freq}")
+    log(f"Detected interval: {freq}")
+
+    forecast_times = pd.date_range(
+        start=last_time + freq,
+        periods=predictor.forecast,
+        freq=freq
+    )
+
+    out_ds = xr.Dataset(
+        data_vars={
+            "t2m": (
+                (
+                    time_coord,
+                    "latitude",
+                    "longitude"
+                ),
+                forecast
+            )
+        },
+        coords={
+            time_coord: forecast_times,
+            "latitude": ds["latitude"].values,
+            "longitude": ds["longitude"].values
+        }
+    )
+
+    # Useful metadata
+    out_ds["t2m"].attrs.update({
+        "long_name": "2 metre temperature",
+        "units": "K"
+    })
+
+    out_ds.attrs.update({
+        "model": "ForecastUNet",
+        "history_steps": predictor.history,
+        "forecast_steps": predictor.forecast
+    })
+
+    out_ds.to_netcdf(output_file)
+
+    print(
+        f"Forecast saved: {output_file}"
+    )
+    log(
+        f"Forecast saved: {output_file}"
+    )
+
+
+def main():
+
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument(
+        "--checkpoint",
+        required=True
+    )
+
+    parser.add_argument(
+        "--input",
+        required=True
+    )
+
+    parser.add_argument(
+        "--output",
+        required=True
+    )
+
+    parser.add_argument(
+        "--device",
+        default="cpu"
+    )
+
+    parser.add_argument(
+        "--start",
+        default=None,
+        help="Forecast initialization time YYYYMMDD-HHMM"
+    )
+
+    args = parser.parse_args()
+
+    predictor = Predictor(
+        args.checkpoint,
+        device=args.device
+    )
+
+    print(
+        f"Opening dataset: "
+        f"{args.input}"
+    )
+    log(f"Opening dataset: {args.input}")
+
+    ds = xr.open_zarr(
+        args.input
+    )
+
+    x = build_input_tensor(
+        ds,
+        predictor,
+        start_time=args.start
+    )
+
+    print(
+        "Running forecast..."
+    )
+    log("Running forecast...")
+
+    forecast = predictor.predict(x)
+
+    print(
+        f"Forecast shape: "
+        f"{forecast.shape}"
+    )
+    log(f"Forecast shape: {forecast.shape}")
+
+    save_forecast(
+        ds,
+        forecast,
+        args.output,
+        predictor,
+        start_time=args.start
+    )
+
+    print("Done.")
+    log("Done.")
+
+
+if __name__ == "__main__":
+    main()
+

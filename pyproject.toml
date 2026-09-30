@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mltoy"
+version = "0.1.0"
+description = "ERA5 temperature forecasting using U-Net"
+readme = "README.md"
+requires-python = ">=3.12"
+
+dependencies = [
+    "numpy",
+    "xarray",
+    "zarr",
+    "pandas",
+    "torch",
+    "netcdf4",
+    "dask",
+]
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = [
+    "models*",
+    "datasets*",
+    "training*",
+    "utils*",
+    "scripts*"
+]

@@ -1082,3 +1082,41 @@ evaluate.py
 train_fno.py
 train_transformer.py
 train_graphcast.py
+
+mltoy/
+│
+├── pyproject.toml
+├── README.md
+│
+├── utils/
+│   ├── __init__.py
+│   ├── config.py
+│   ├── logger.py
+│   ├── feature_builder.py
+│   └── data_loader.py
+│
+├── datasets/
+│   ├── __init__.py
+│   └── forecast_dataset.py
+│
+├── models/
+│   ├── __init__.py
+│   ├── double_conv.py
+│   └── forecast_unet.py
+│
+├── training/
+│   ├── __init__.py
+│   └── trainer.py
+│
+├── scripts/
+│   ├── __init__.py
+│   └── train_unet.py
+│
+├── data/
+├── logs/
+└── checkpoints/
+
+
+cd ~/work/mltoy
+
+pip install -e .

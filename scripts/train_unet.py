@@ -1,9 +1,15 @@
+#!/usr/bin/env python
+
+import os
+import time
+
 import torch
 
 from torch.utils.data import DataLoader
 
 from utils.config import *
 from utils.logger import LoggerFactory
+
 from utils.data_loader import ERA5DataLoader
 from utils.feature_builder import FeatureBuilder
 
@@ -14,119 +20,340 @@ from models.forecast_unet import ForecastUNet
 from training.trainer import Trainer
 
 
-logger = LoggerFactory.create(
-    LOG_FILE
-)
+def main():
 
-loader = ERA5DataLoader(
-    DATASET
-)
-
-ds, temp, times = loader.load()
-
-(
-    train,
-    val,
-    test,
-    train_end,
-    val_end
-) = loader.split(temp)
-
-(
-    train,
-    val,
-    test,
-    mean,
-    std
-) = loader.normalize(
-    train,
-    val,
-    test
-)
-
-(
-    sin_hour,
-    cos_hour,
-    sin_doy,
-    cos_doy
-) = FeatureBuilder.build_time_features(
-    times
-)
-
-lat_grid = (
-    FeatureBuilder.build_latitude_feature(
-        ds["latitude"].values,
-        len(ds["longitude"])
-    )
-)
-
-train_ds = ForecastDataset(
-    train,
-    sin_hour[:train_end],
-    cos_hour[:train_end],
-    sin_doy[:train_end],
-    cos_doy[:train_end],
-    lat_grid,
-    HISTORY,
-    FORECAST
-)
-
-val_ds = ForecastDataset(
-    val,
-    sin_hour[train_end:val_end],
-    cos_hour[train_end:val_end],
-    sin_doy[train_end:val_end],
-    cos_doy[train_end:val_end],
-    lat_grid,
-    HISTORY,
-    FORECAST
-)
-
-train_loader = DataLoader(
-    train_ds,
-    batch_size=BATCH_SIZE,
-    shuffle=True
-)
-
-val_loader = DataLoader(
-    val_ds,
-    batch_size=BATCH_SIZE,
-    shuffle=False
-)
-
-model = ForecastUNet(
-    HISTORY + 5,
-    FORECAST
-).to(DEVICE)
-
-criterion = torch.nn.MSELoss()
-
-optimizer = torch.optim.Adam(
-    model.parameters(),
-    lr=LR
-)
-
-trainer = Trainer(
-    model,
-    criterion,
-    optimizer,
-    DEVICE,
-    logger
-)
-
-for epoch in range(EPOCHS):
-
-    train_loss = trainer.train_epoch(
-        train_loader
+    logger = LoggerFactory.create(
+        LOG_FILE
     )
 
-    val_loss = trainer.validate(
-        val_loader
+    logger.info(
+        "Starting training run"
+    )
+
+    ########################################################
+    # Load ERA5
+    ########################################################
+
+    loader = ERA5DataLoader(
+        DATASET
+    )
+
+    logger.info(
+        "Loading ZARR dataset..."
+    )
+
+    ds, temp, times = loader.load()
+
+    logger.info(
+        f"Temperature shape: {temp.shape}"
+    )
+
+    ########################################################
+    # Split
+    ########################################################
+
+    (
+        train,
+        val,
+        test,
+        train_end,
+        val_end
+    ) = loader.split(
+        temp
+    )
+
+    ########################################################
+    # Normalize
+    ########################################################
+
+    (
+        train,
+        val,
+        test,
+        mean,
+        std
+    ) = loader.normalize(
+        train,
+        val,
+        test
+    )
+
+    logger.info(
+        f"Mean={mean:.6f}"
+    )
+
+    logger.info(
+        f"Std={std:.6f}"
+    )
+
+    ########################################################
+    # Features
+    ########################################################
+
+    (
+        sin_hour,
+        cos_hour,
+        sin_doy,
+        cos_doy
+    ) = FeatureBuilder.build_time_features(
+        times
+    )
+
+    lat_grid = (
+        FeatureBuilder.build_latitude_feature(
+            ds["latitude"].values,
+            len(
+                ds["longitude"]
+            )
+        )
+    )
+
+    ########################################################
+    # Train feature slices
+    ########################################################
+
+    train_sin_hour = (
+        sin_hour[:train_end]
+    )
+
+    train_cos_hour = (
+        cos_hour[:train_end]
+    )
+
+    train_sin_doy = (
+        sin_doy[:train_end]
+    )
+
+    train_cos_doy = (
+        cos_doy[:train_end]
+    )
+
+    ########################################################
+    # Validation slices
+    ########################################################
+
+    val_sin_hour = (
+        sin_hour[
+            train_end:val_end
+        ]
+    )
+
+    val_cos_hour = (
+        cos_hour[
+            train_end:val_end
+        ]
+    )
+
+    val_sin_doy = (
+        sin_doy[
+            train_end:val_end
+        ]
+    )
+
+    val_cos_doy = (
+        cos_doy[
+            train_end:val_end
+        ]
+    )
+
+    ########################################################
+    # Datasets
+    ########################################################
+
+    train_ds = ForecastDataset(
+        train,
+        train_sin_hour,
+        train_cos_hour,
+        train_sin_doy,
+        train_cos_doy,
+        lat_grid,
+        HISTORY,
+        FORECAST
+    )
+
+    val_ds = ForecastDataset(
+        val,
+        val_sin_hour,
+        val_cos_hour,
+        val_sin_doy,
+        val_cos_doy,
+        lat_grid,
+        HISTORY,
+        FORECAST
+    )
+
+    ########################################################
+    # Dataloaders
+    ########################################################
+
+    train_loader = DataLoader(
+        train_ds,
+        batch_size=BATCH_SIZE,
+        shuffle=True
+    )
+
+    val_loader = DataLoader(
+        val_ds,
+        batch_size=BATCH_SIZE,
+        shuffle=False
+    )
+
+    ########################################################
+    # Model
+    ########################################################
+
+    model = ForecastUNet(
+        input_channels=HISTORY + 5,
+        forecast_steps=FORECAST
+    ).to(
+        DEVICE
+    )
+
+    criterion = (
+        torch.nn.MSELoss()
+    )
+
+    optimizer = (
+        torch.optim.Adam(
+            model.parameters(),
+            lr=LR
+        )
+    )
+
+    trainer = Trainer(
+        model=model,
+        criterion=criterion,
+        optimizer=optimizer,
+        device=DEVICE,
+        logger=logger
+    )
+
+    ########################################################
+    # Training
+    ########################################################
+
+    best_val_loss = 1.0e30
+
+    training_start = time.time()
+
+    logger.info(
+        f"Training started "
+        f"(epochs={EPOCHS}, "
+        f"batch={BATCH_SIZE}, "
+        f"device={DEVICE})"
+    )
+
+    os.makedirs(
+        os.path.dirname(
+            CHECKPOINT_FILE
+        ),
+        exist_ok=True
+    )
+
+    for epoch in range(EPOCHS):
+
+        epoch_start = time.time()
+
+        train_loss = (
+            trainer.train_epoch(
+                train_loader
+            )
+        )
+
+        val_loss = (
+            trainer.validate(
+                val_loader
+            )
+        )
+
+        epoch_time = (
+            time.time()
+            - epoch_start
+        )
+
+        elapsed = (
+            time.time()
+            - training_start
+        )
+
+        avg_epoch = (
+            elapsed / (epoch + 1)
+        )
+
+        eta = (
+            avg_epoch
+            * (
+                EPOCHS
+                - epoch
+                - 1
+            )
+        )
+
+        msg = (
+            f"Epoch "
+            f"{epoch+1:03d}/{EPOCHS} "
+            f"Train={train_loss:.6f} "
+            f"Val={val_loss:.6f} "
+            f"EpochTime={epoch_time:.1f}s "
+            f"ETA={eta/60:.1f} min"
+        )
+
+        print(msg)
+
+        logger.info(msg)
+
+        ####################################################
+        # Save best checkpoint
+        ####################################################
+
+        if val_loss < best_val_loss:
+
+            best_val_loss = val_loss
+
+            torch.save(
+                {
+                    "model_state_dict":
+                        model.state_dict(),
+
+                    # PyTorch 2.6 safe
+                    "mean":
+                        float(mean),
+
+                    "std":
+                        float(std),
+
+                    "history":
+                        int(HISTORY),
+
+                    "forecast":
+                        int(FORECAST),
+
+                    "best_val_loss":
+                        float(val_loss)
+                },
+                CHECKPOINT_FILE
+            )
+
+            logger.info(
+                f"Checkpoint saved "
+                f"({CHECKPOINT_FILE}) "
+                f"val={val_loss:.6f}"
+            )
+
+    total_minutes = (
+        time.time()
+        - training_start
+    ) / 60.0
+
+    logger.info(
+        f"Training finished "
+        f"runtime={total_minutes:.2f} min"
     )
 
     print(
-        f"Epoch {epoch+1:03d} "
-        f"Train={train_loss:.6f} "
-        f"Val={val_loss:.6f}"
+        "Training complete."
     )
 
+
+if __name__ == "__main__":
+    main()

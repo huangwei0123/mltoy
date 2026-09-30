@@ -1,0 +1,314 @@
++ [[ ! -f data/truth.nc ]]
++ python -m scripts.predict --checkpoint data/t2m_cpu.pt --input data/era5-t2m-5deg.zarr --start 20260901-0000 --output forecasts/t2m_20260901_0000.nc
+Loading checkpoint: data/t2m_cpu.pt
+[2026-09-30 11:03:11] Loading checkpoint: data/t2m_cpu.pt
+Loaded model (history=8, forecast=12)
+[2026-09-30 11:03:11] Loaded model history=8, forecast=12
+Opening dataset: data/era5-t2m-5deg.zarr
+[2026-09-30 11:03:11] Opening dataset: data/era5-t2m-5deg.zarr
+Running forecast...
+[2026-09-30 11:03:13] Running forecast...
+Forecast shape: (1, 12, 36, 72)
+[2026-09-30 11:03:13] Forecast shape: (1, 12, 36, 72)
+Detected interval: 0 days 06:00:00
+Detected interval: 0 days 06:00:00
+[2026-09-30 11:03:13] Detected interval: 0 days 06:00:00
+Forecast saved: forecasts/t2m_20260901_0000.nc
+[2026-09-30 11:03:13] Forecast saved: forecasts/t2m_20260901_0000.nc
+Done.
+[2026-09-30 11:03:13] Done.
++ python -m scripts.evaluate forecasts/t2m_20260901_0000.nc data/truth.nc
+
+======================================================================
+OVERALL VERIFICATION
+======================================================================
+RMSE : 2.040
+MAE  : 1.304
+BIAS : -0.248
+CORR : 0.996
+ACC  : 0.588
+
+======================================================================
+PER-LEAD SCORES
+======================================================================
+  Lead       RMSE        MAE       BIAS        ACC
+     6      1.099      0.712      0.043      0.913
+    12      1.382      0.908      0.022      0.850
+    18      1.595      1.053     -0.135      0.734
+    24      1.778      1.183     -0.202      0.651
+    30      1.990      1.289     -0.250      0.583
+    36      2.085      1.385     -0.391      0.530
+    42      2.201      1.461     -0.492      0.404
+    48      2.229      1.473     -0.362      0.424
+    54      2.310      1.474     -0.187      0.432
+    60      2.344      1.557     -0.362      0.465
+    66      2.409      1.564     -0.384      0.430
+    72      2.518      1.590     -0.281      0.424
+
+======================================================================
+GLOBAL MEAN TEMPERATURE
+======================================================================
+
+  Lead     Forecast        Truth        Error
+     6        8.233        8.189        0.043
+    12        8.405        8.382        0.022
+    18        7.950        8.085       -0.135
+    24        7.532        7.734       -0.202
+    30        7.804        8.054       -0.250
+    36        7.956        8.347       -0.391
+    42        7.608        8.099       -0.492
+    48        7.340        7.702       -0.362
+    54        7.815        8.002       -0.187
+    60        7.901        8.263       -0.362
+    66        7.655        8.040       -0.384
+    72        7.442        7.722       -0.281
+
+Done.
+
+
+Honestly, these results are much better than I would have expected for a first CPU-trained U-Net on 5° global data.
+
+The Good News
+1. RMSE is reasonable
+
+At 72 h:
+
+RMSE = 2.52 K
+
+
+and overall:
+
+RMSE = 2.04 K
+MAE  = 1.30 K
+
+
+For a toy model trained on:
+
+only 2 m temperature
+5° resolution
+no pressure fields
+no winds
+no humidity
+no topography
+no ocean information
+no GPU training
+
+this is actually encouraging.
+
+2. Correlation is extremely high
+CORR = 0.996
+
+
+This indicates the model has learned the large-scale spatial temperature structure very well.
+
+The model clearly knows:
+
+where warm places are
+where cold places are
+land/ocean contrasts
+seasonal temperature gradients
+
+
+This is a very good sign.
+
+3. Forecast degradation looks physically sensible
+
+RMSE growth:
+
+6 h   1.10 K
+12 h  1.38 K
+24 h  1.78 K
+48 h  2.23 K
+72 h  2.52 K
+
+
+This is exactly what we'd expect:
+
+short lead -> higher skill
+long lead  -> lower skill
+
+
+No strange oscillations.
+
+No explosion.
+
+No numerical instability.
+
+No obvious overfitting artifact.
+
+The Less Good News
+ACC drops fairly quickly
+6 h   0.913
+12 h  0.850
+24 h  0.651
+36 h  0.530
+72 h  0.424
+
+
+ACC below about:
+
+0.6
+
+
+usually means meaningful forecast skill is fading.
+
+So your model is strongest in roughly:
+
+6-24h
+
+
+and weaker beyond:
+
+36-72h
+
+
+This is not surprising.
+
+The network only sees:
+
+temperature history
++
+simple time features
++
+latitude
+
+
+There is no dynamical information.
+
+The Biggest Problem
+
+The bias trend caught my eye immediately.
+
+Bias:
+
+ 6 h   +0.043
+12 h   +0.022
+18 h   -0.135
+24 h   -0.202
+30 h   -0.250
+36 h   -0.391
+42 h   -0.492
+
+
+The model develops a systematic cold bias.
+
+The global mean temperature table confirms it:
+
+Forecast colder than truth
+
+
+at nearly every lead after 18 h.
+
+You are losing roughly:
+
+0.3 - 0.5 C
+
+
+globally.
+
+That is a classic symptom of:
+
+regression-to-the-mean
+
+
+in ML forecasts.
+
+The model tends toward climatology and damps anomalies.
+
+Most Important Missing Benchmark
+
+Right now we do not know whether the U-Net is actually better than persistence.
+
+You need:
+
+Persistence Forecast
+Forecast(t+6)  = T0
+Forecast(t+12) = T0
+...
+Forecast(t+72) = T0
+
+
+Then compute:
+
+Persistence RMSE
+Persistence MAE
+Persistence ACC
+
+
+and compare.
+
+Suppose:
+
+72 h Persistence RMSE = 4.5 K
+72 h U-Net RMSE       = 2.5 K
+
+
+Then the model is genuinely skillful.
+
+But if:
+
+72 h Persistence RMSE = 2.7 K
+72 h U-Net RMSE       = 2.5 K
+
+
+then the model is only slightly improving over a baseline.
+
+This is the next test I'd run.
+
+Another Important Caveat
+
+Currently your metrics are:
+
+np.mean(...)
+
+
+which treats every grid cell equally.
+
+For global verification that's not ideal.
+
+You should compute:
+
+weights = cos(latitude)
+
+
+and then calculate:
+
+Weighted RMSE
+Weighted MAE
+Weighted ACC
+
+
+This is how operational NWP centers verify global forecasts.
+
+Without weighting:
+
+Polar regions are overrepresented.
+
+What These Results Tell Me
+
+I would score this prototype as:
+
+Architecture        : PASS
+Training pipeline   : PASS
+Forecast generation : PASS
+Time handling       : PASS
+Verification        : PASS
+
+Forecast skill      : PROMISING
+
+
+The model has clearly learned something beyond noise.
+
+The next gains will likely come from adding predictors, not making the network bigger.
+
+I'd prioritize:
+
+Persistence benchmark.
+Latitude-weighted metrics.
+850 hPa temperature.
+Sea level pressure.
+Z500 geopotential height.
+10 m U/V winds.
+
+Adding those state variables will likely improve 72 h skill much more than doubling the size of the U-Net. Given these results, I think you've successfully demonstrated that the end-to-end ERA5 → Zarr → U-Net → NetCDF → Hindcast verification pipeline is working. That's a significant milestone.
+
