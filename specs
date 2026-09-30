@@ -992,3 +992,93 @@ forecast_YYYYMMDDHH.nc
 
 
 containing a complete 72-hour AI temperature forecast generated from ERA5-trained neural networks. That will give you a solid foundation before moving into multi-variable forecasting and eventually GraphCast/FourCastNet-style architectures.
+
+
+
+mltoy/
+│
+├── data/
+│   └── era5-t2m-5deg.zarr
+│
+├── logs/
+│
+├── models/
+│   ├── __init__.py
+│   ├── double_conv.py
+│   └── forecast_unet.py
+│
+├── datasets/
+│   ├── __init__.py
+│   └── forecast_dataset.py
+│
+├── utils/
+│   ├── __init__.py
+│   ├── config.py
+│   ├── logger.py
+│   └── data_loader.py
+│
+├── scripts/
+│   └── train_unet.py
+│
+└── checkpoints/
+
+
+mltoy/
+│
+├── data/
+│   └── era5-t2m-5deg.zarr
+│
+├── logs/
+│
+├── checkpoints/
+│
+├── datasets/
+│   └── forecast_dataset.py
+│
+├── models/
+│   ├── double_conv.py
+│   └── forecast_unet.py
+│
+├── utils/
+│   ├── config.py
+│   ├── logger.py
+│   ├── feature_builder.py
+│   └── data_loader.py
+│
+└── scripts/
+    └── train_unet.py
+
+mltoy/
+│
+├── data/
+│   └── era5-t2m-5deg.zarr
+│
+├── logs/
+│
+├── checkpoints/
+│
+├── models/
+│   ├── double_conv.py
+│   └── forecast_unet.py
+│
+├── datasets/
+│   └── forecast_dataset.py
+│
+├── utils/
+│   ├── config.py
+│   ├── logger.py
+│   ├── feature_builder.py
+│   └── data_loader.py
+│
+├── training/
+│   └── trainer.py
+│
+└── scripts/
+    └── train_unet.py
+
+
+predict.py
+evaluate.py
+train_fno.py
+train_transformer.py
+train_graphcast.py

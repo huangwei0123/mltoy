@@ -2,3 +2,5 @@ data
 logs
 forecasts
 log.*
+models/__pycache__/
+scripts/__pycache__/
