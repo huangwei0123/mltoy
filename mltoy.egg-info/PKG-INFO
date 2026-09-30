@@ -1,16 +1,16 @@
 Metadata-Version: 2.4
 Name: mltoy
 Version: 0.1.0
-Summary: ERA5 temperature forecasting using U-Net
-Requires-Python: >=3.12
+Summary: Weather AI forecasting experiments using ERA5
+Requires-Python: >=3.10
 Description-Content-Type: text/markdown
 Requires-Dist: numpy
+Requires-Dist: pandas
 Requires-Dist: xarray
 Requires-Dist: zarr
-Requires-Dist: pandas
-Requires-Dist: torch
 Requires-Dist: netcdf4
-Requires-Dist: dask
+Requires-Dist: torch
+Requires-Dist: matplotlib
 
 # mltoy
 echo "# mltoy" >> README.md

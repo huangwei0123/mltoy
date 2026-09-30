@@ -15,7 +15,7 @@ from utils.feature_builder import FeatureBuilder
 
 from datasets.forecast_dataset import ForecastDataset
 
-from models.forecast_unet import ForecastUNet
+from models.forecast_cnn import ForecastCNN
 
 from training.trainer import Trainer
 
@@ -27,7 +27,7 @@ def main():
     )
 
     logger.info(
-        "Starting training run"
+        "Starting CNN training run"
     )
 
     ########################################################
@@ -202,7 +202,7 @@ def main():
     # Model
     ########################################################
 
-    model = ForecastUNet(
+    model = ForecastCNN(
         input_channels=HISTORY + 5,
         forecast_steps=FORECAST
     ).to(
@@ -243,9 +243,13 @@ def main():
         f"device={DEVICE})"
     )
 
+    checkpoint_file = (
+        "models/t2m_cnn.pt"
+    )
+
     os.makedirs(
         os.path.dirname(
-            CHECKPOINT_FILE
+            checkpoint_file
         ),
         exist_ok=True
     )
@@ -313,20 +317,19 @@ def main():
             torch.save(
                 {
                     "model_state_dict": model.state_dict(),
-                    # PyTorch 2.6 safe
                     "mean": float(mean),
                     "std": float(std),
                     "history": int(HISTORY),
                     "forecast": int(FORECAST),
-                    "model_type": "unet",
+                    "model_type": "cnn",
                     "best_val_loss": float(val_loss)
                 },
-                CHECKPOINT_FILE
+                checkpoint_file
             )
 
             logger.info(
                 f"Checkpoint saved "
-                f"({CHECKPOINT_FILE}) "
+                f"({checkpoint_file}) "
                 f"val={val_loss:.6f}"
             )
 

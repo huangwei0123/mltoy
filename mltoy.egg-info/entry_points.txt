@@ -1,0 +1,5 @@
+[console_scripts]
+evaluate-t2m = scripts.evaluate:main
+predict-t2m = scripts.predict:main
+train-cnn = scripts.train_cnn:main
+train-unet = scripts.train_unet:main

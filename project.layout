@@ -1,0 +1,39 @@
+mltoy/
+│
+├── pyproject.toml
+│
+├── datasets/
+│   ├── __init__.py
+│   └── forecast_dataset.py
+│
+├── forecasts/
+│   ├── __init__.py
+│   ├── predictor.py
+│   ├── model_factory.py
+│   ├── input_builder.py
+│   └── netcdf_writer.py
+│
+├── models/
+│   ├── __init__.py
+│   ├── forecast_cnn.py
+│   ├── forecast_unet.py
+│   └── double_conv.py
+│
+├── training/
+│   ├── __init__.py
+│   └── trainer.py
+│
+├── utils/
+│   ├── __init__.py
+│   ├── config.py
+│   ├── logger.py
+│   ├── data_loader.py
+│   └── feature_builder.py
+│
+└── scripts/
+    ├── __init__.py
+    ├── train_cnn.py
+    ├── train_unet.py
+    ├── predict.py
+    └── evaluate.py
+
