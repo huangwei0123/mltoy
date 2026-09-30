@@ -1,22 +1,994 @@
-Dataset:
-era5-t2m-5deg.zarr
+Absolutely. Based on our recent work, we've essentially been building a CPU-friendly AI weather forecasting prototype using ERA5 2-meter temperature data as the first target variable. The goal is to learn the entire end-to-end workflow before scaling to higher resolution data, additional variables, and GPU-based training.
+
+What We Have Built So Far
+Phase 1: Data Strategy
+Data Source
+
+We selected:
+
+ERA5 reanalysis
+2-meter air temperature (t2m)
+Global gridded data
+6-hourly intervals:
+00Z
+06Z
+12Z
+18Z
+Initial Simplifications
+
+To make training possible on a CPU VM:
+
+Use only ~10 years of data
+Very coarse grid (~5° resolution)
+Single atmospheric variable initially
+Autoregressive temperature forecasting
+
+This reduces:
+
+Storage
+RAM usage
+Training time
+
+while still teaching all of the AI weather forecasting concepts.
+
+Phase 2: NetCDF → Zarr Pipeline
+
+We discussed:
+
+ERA5 NetCDF
+      ↓
+Spatial Downsample (5°)
+      ↓
+Add Time Features
+      ↓
+Convert to Zarr
+      ↓
+PyTorch Dataset
+
+
+Why?
+
+Weather datasets become huge.
+
+NetCDF works well for storage.
+
+Zarr works far better for:
+
+chunking
+parallel access
+AI training
+
+This is exactly the direction used by:
+
+WeatherBench
+GraphCast
+FourCastNet
+Pangu Weather
+Phase 3: Time Features
+
+We added four cyclical predictors:
+
+Hour of day
+sin(hour)
+cos(hour)
+
+Day of year
+sin(doy)
+cos(doy)
+
+
+These help the network learn:
+
+diurnal cycle
+seasonal cycle
+
+without needing to memorize dates.
+
+Result:
+
+Input channels become:
+
+Temperature
+Hour Sin
+Hour Cos
+Day Sin
+Day Cos
+
+
+Total = 5 channels
+
+Phase 4: Training Dataset Design
+
+For every training sample:
 
 Input:
-48 hours history (8 x 6h)
+
+Previous temperature analysis
+
+
+Forecast target:
+
++6 hours
+
+
+Example:
+
+2020-01-01 00Z
+     ↓
+2020-01-01 06Z
+
+
+Then later:
+
+2020-01-01 06Z
+     ↓
+2020-01-01 12Z
+
+
+Thousands of these pairs are created automatically.
+
+Phase 5: Neural Network
+
+We selected a lightweight CNN.
+
+Conceptually:
+
+Input Grid
+     ↓
+Conv
+     ↓
+ReLU
+     ↓
+Conv
+     ↓
+ReLU
+     ↓
+Conv
+     ↓
+Forecast Grid
+
+
+Input:
+
+5 channels
+
 
 Output:
-72 hours forecast (12 x 6h)
 
-Resolution:
-5°
+1 channel
+
+
+Forecast:
+
+Temperature +6 hr
+
+
+This is essentially the smallest version of a modern numerical-weather AI model.
+
+Phase 6: Loss Function
+
+Training objective:
+
+MSELoss
+
+
+which minimizes:
+
+(predicted - truth)^2
+
+
+Training loop:
+
+Read batch
+Forward pass
+Compute loss
+Backprop
+Update weights
+Repeat
+
+Phase 7: Multi-Step Forecasting
+
+After learning +6h:
+
+Forecast repeatedly:
+
+T0
+ ↓
++6
+ ↓
++12
+ ↓
++18
+ ↓
+...
+ ↓
++72
+
+
+This is called:
+
+Autoregressive Forecasting
+
+and is exactly how:
+
+GraphCast
+FourCastNet
+Pangu Weather
+
+perform long forecasts.
+
+Phase 8: NetCDF Forecast Output
+
+We modified prediction output to save:
+
+forecast_2020010100.nc
+
+
+instead of images.
+
+Output structure:
+
+forecast_hour
+latitude
+longitude
+temperature
+
+
+Benefits:
+
+Compatible with NCL
+Compatible with Python
+Compatible with xarray
+Compatible with GIS tools
+Major Issues We Solved
+1. CPU-Only Training
+
+No NVIDIA GPU available.
+
+Solution:
+
+smaller CNN
+coarse grid
+Zarr chunking
+2. Chunking Warning
+
+You encountered:
+
+specified chunks separate the stored chunks
+
+
+This came from Zarr chunk alignment.
+
+Solution:
+
+Align chunk sizes with the source NetCDF chunks.
+
+Mostly a performance issue, not a correctness issue.
+
+3. Forecast Initialization Bug
+
+We debugged:
+
+init_time
+
+
+problems in predict.py.
+
+Root cause:
+
+Time coordinate handling and NetCDF metadata assumptions.
+
+We redesigned the prediction script so:
+
+Read initial time
+Read grid
+Iteratively forecast
+Create NetCDF output
+
+
+more robustly.
+
+What This Model Actually Learns
+
+The model learns:
+
+F(T, location, season, hour)
+      ↓
+T + 6 hr
+
+
+Examples:
+
+Heating during daytime
+Cooling at night
+Seasonal temperature shifts
+Land/ocean contrasts
+Large-scale advection patterns
+
+without explicitly coding atmospheric physics.
+
+What It Does NOT Learn Yet
+
+Not yet included:
+
+Wind
+u10
+v10
+
+Pressure
+MSLP
+
+Humidity
+RH
+
+Geopotential
+Z500
+
+Radiation
+SW/LW fluxes
+
+
+Without these variables, the model can only partially understand atmospheric evolution.
+
+This is expected for the first prototype.
+
+Recommended Learning Path
+Level 1: Python Foundations
+
+Learn:
+
+NumPy
+Pandas
+Xarray
+Matplotlib
+
+Goal:
+
+open_dataset()
+plot()
+resample()
+write_netcdf()
+
+Level 2: ERA5 Processing
+
+Learn:
+
+xarray
+dask
+zarr
+
+
+Practice:
+
+ERA5 NetCDF
+↓
+Subset
+↓
+Downsample
+↓
+Zarr
+
+Level 3: PyTorch Basics
+
+Learn:
+
+Tensors
+torch.Tensor
+
+Dataset
+Dataset
+DataLoader
+
+Training
+forward()
+backward()
+optimizer.step()
+
+Level 4: CNN Forecast Model
+
+Study:
+
+Convolution
+Pooling
+Padding
+Receptive Field
+
+
+Understand:
+
+Why CNNs work well on weather grids.
+
+Level 5: Autoregressive Forecasting
+
+Learn:
+
+Analysis
+ ↓
++6h
+ ↓
++12h
+ ↓
++18h
+
+
+This is the key concept behind modern AI forecasting.
+
+Level 6: WeatherBench
+
+Study:
+
+WeatherBench
+WeatherBench2
+
+These are excellent benchmark datasets and evaluation frameworks for AI weather prediction.
+
+Level 7: Modern AI Weather Models
+
+After the toy model works, study:
+
+FourCastNet
+
+Spectral neural operator forecasting.
+
+GraphCast
+
+Google DeepMind's graph neural network weather model.
+
+Pangu-Weather
+
+Huawei's transformer-based global weather model.
+
+Aurora
+
+Microsoft's foundation model for atmosphere and Earth systems.
+
+Your Current Roadmap
+
+You are approximately here:
+
+✅ ERA5 download
+✅ NetCDF handling
+✅ Coarse-grid preprocessing
+✅ NetCDF → Zarr conversion
+✅ Time features
+✅ PyTorch Dataset
+✅ CNN model
+✅ CPU training
+✅ Autoregressive forecasts
+✅ NetCDF forecast output
+
+NEXT:
+□ Train model successfully
+□ Verify forecast skill
+□ Add winds
+□ Add pressure
+□ Add humidity
+□ Move to 1° data
+□ Move to 0.25° data
+□ GPU training
+□ Transformer/Graph models
+□ WeatherBench evaluation
+□ GraphCast-style architecture
+
+
+This is actually a very solid progression. You're not just learning PyTorch, you're recreating, in simplified form, the same end-to-end pipeline used by today's AI weather forecasting systems, starting from ERA5 data and progressing toward GraphCast/FourCastNet-class methodologies.
+
+
+AI Weather Forecasting Study Plan
+Goal: Build from ERA5 temperature forecasting to GraphCast-class AI weather models
+
+Since you already have Python installed, are working with ERA5, NetCDF, Zarr, and PyTorch, this plan focuses on becoming an AI weather scientist/engineer, not a beginner programmer.
+
+Phase 1 (Week 1-2)
+Scientific Python Foundation
+Learn
+NumPy
+
+Understand:
+
+array
+reshape
+transpose
+mean
+std
+broadcasting
+
+
+Practice:
+
+import numpy as np
+
+x = np.random.rand(100, 180, 360)
+
+print(x.mean())
+print(x.std())
+
+Milestone
+
+Be comfortable manipulating 3D weather grids.
+
+Xarray
+
+This is the most important library for atmospheric datasets.
+
+Learn:
+
+open_dataset()
+sel()
+isel()
+coarsen()
+interp()
+resample()
+to_netcdf()
+
+
+Practice:
+
+ds = xr.open_dataset("era5.nc")
+
+print(ds)
+
+Milestone
+
+Open ERA5 files and inspect dimensions without looking at tutorials.
+
+Matplotlib
+
+Learn:
+
+imshow()
+contourf()
+colorbar()
+
+
+Practice plotting:
+
+global temperature
+anomalies
+forecast errors
+Milestone
+
+Create diagnostic plots independently.
+
+Phase 2 (Week 3-4)
+Weather Data Engineering
+Learn NetCDF
+
+Understand:
+
+Dimensions
+Coordinates
+Variables
+Attributes
+
+
+Inspect files:
+
+ncdump -h file.nc
+
+
+Learn:
+
+xr.open_dataset()
+xr.to_netcdf()
+
+Learn Zarr
+
+Understand:
+
+Chunking
+Compression
+Lazy Loading
+Parallel Access
+
+
+Practice:
+
+ds.to_zarr()
+xr.open_zarr()
+
+Milestone
+
+Convert ERA5 NetCDF files into training-ready Zarr stores.
+
+Learn Dask
+
+Understand:
+
+Out-of-core processing
+Distributed arrays
+Chunk management
+
+
+Practice:
+
+ds.chunk()
+
+Milestone
+
+Process datasets larger than RAM.
+
+Phase 3 (Week 5-6)
+Weather Forecasting Fundamentals
+
+Study atmospheric science basics.
+
+Learn:
+Temperature Advection
+
+Why temperature moves.
+
+Diurnal Cycle
+
+Why daytime heating matters.
+
+Seasonal Cycle
+
+Why June differs from January.
+
+Synoptic Scale
+
+Large weather systems.
+
+Fronts
+
+Warm fronts Cold fronts
+
+Rossby Waves
+
+Planetary-scale patterns.
+
+Recommended Resources
+
+COMET MetEd modules:
+
+Introduction to Meteorology
+Synoptic Meteorology
+Numerical Weather Prediction
+
+These are among the best free meteorology courses available.
+
+Milestone
+
+Understand physically why temperature changes.
+
+Phase 4 (Week 7-8)
+PyTorch Fundamentals
+
+Learn:
+
+Tensors
+torch.tensor()
+
+Dataset Class
+Dataset
+DataLoader
+
+Neural Networks
+nn.Module
+
+Training Loop
+loss.backward()
+optimizer.step()
+
+Milestone
+
+Train a small toy model from scratch.
+
+Phase 5 (Week 9-10)
+CNN Weather Model
+
+Now learn why CNNs work on weather grids.
+
+Study:
+
+Convolution
+Neighborhood pattern detection
+
+Receptive Field
+How far the model can "see"
+
+Padding
+Preserve grid dimensions
+
+Activation Functions
+ReLU
+GELU
+
+Practical Project
+
+Recreate your current model:
+
+Input:
+
+Temperature
+HourSin
+HourCos
+DaySin
+DayCos
+
+
+Output:
+
+Temperature +6h
+
+Milestone
+
+Successfully train a +6h forecast model.
+
+Phase 6 (Week 11-12)
+Forecast Verification
+
+Most beginners skip this.
+
+Learn:
+
+RMSE
+rmse
+
+MAE
+mae
+
+Bias
+forecast - truth
+
+Correlation
+corrcoef
+
+
+Create plots of:
+
+Forecast error vs lead time
+
+
+for:
+
+6h
+12h
+24h
+48h
+72h
+
+Milestone
+
+Know quantitatively whether your model is useful.
+
+Phase 7 (Week 13-14)
+Multi-Step Forecasting
+
+Understand:
+
+Autoregressive Forecasting
+
 
 Training:
-CPU
 
-Features:
-- Temperature
-- sin(hour)
-- cos(hour)
-- sin(day_of_year)
-- cos(day_of_year)
-- latitude
+T0 -> T+6h
+
+
+Prediction:
+
+T0
+ ↓
+T+6
+ ↓
+T+12
+ ↓
+T+18
+...
+
+
+Learn:
+
+Error Growth
+
+Why forecasts degrade.
+
+Exposure Bias
+
+Why long forecasts fail.
+
+Teacher Forcing
+
+A common remedy.
+
+Milestone
+
+Produce stable 72-hour forecasts.
+
+Phase 8 (Month 4)
+Multi-Variable Forecasting
+
+Add:
+
+U wind
+V wind
+Pressure
+Humidity
+
+
+Channels become:
+
+Temperature
+U
+V
+Pressure
+Humidity
+Time features
+
+
+The network begins learning atmospheric dynamics rather than simply temperature persistence.
+
+Milestone
+
+Train a genuine weather model with multiple state variables.
+
+Phase 9 (Month 5)
+WeatherBench
+
+Study:
+
+WeatherBench
+WeatherBench2
+
+These provide:
+
+Benchmark datasets
+Evaluation methods
+Reference models
+
+
+You will learn how major research groups evaluate weather AI models.
+
+Milestone
+
+Compare your forecasts against published baselines.
+
+Phase 10 (Month 6)
+Modern AI Weather Models
+
+Study in this order:
+
+FourCastNet
+
+Understand:
+
+Spectral neural operators
+
+
+Read the paper.
+
+Pangu-Weather
+
+Understand:
+
+3D atmosphere
+Transformer architecture
+
+
+Read the paper.
+
+GraphCast
+
+Understand:
+
+Graph Neural Networks
+Message Passing
+Global Forecasting
+
+
+Read DeepMind's work carefully.
+
+Aurora (Microsoft)
+
+Understand:
+
+Foundation Models
+Transfer Learning
+Earth-system prediction
+
+Phase 11 (Month 7-8)
+GPU Training
+
+Move from CPU:
+
+5°
+
+
+to:
+
+1°
+
+
+Then:
+
+0.25°
+
+
+Learn:
+
+CUDA
+Mixed Precision
+Distributed Data Loading
+
+Milestone
+
+Train regional and global models efficiently.
+
+Phase 12 (Capstone Project)
+
+Build a mini-GraphCast pipeline:
+
+ERA5 Download
+      ↓
+NetCDF
+      ↓
+Zarr
+      ↓
+Preprocessing
+      ↓
+CNN/Transformer
+      ↓
+Autoregressive Forecast
+      ↓
+NetCDF Output
+      ↓
+Skill Verification
+
+
+Forecast:
+
+6h
+12h
+24h
+48h
+72h
+
+
+and compare against ERA5 truth.
+
+Recommended Reading Order
+Data
+Xarray documentation
+Zarr documentation
+Dask documentation
+Deep Learning
+PyTorch Fundamentals
+Deep Learning with PyTorch (Daniel Bourke)
+Weather AI
+WeatherBench
+FourCastNet paper
+Pangu-Weather paper
+GraphCast paper
+Aurora paper
+Your Immediate Next 30-Day Plan
+Week 1
+
+✅ Finish NetCDF → Zarr pipeline
+
+Week 2
+
+✅ Verify Dataset class and dataloader
+
+Week 3
+
+✅ Complete first temperature-only training run
+
+Week 4
+
+✅ Generate and verify 72-hour forecasts
+
+End of Month Goal
+
+You should be able to run:
+
+python scripts/train.py
+python scripts/predict.py
+
+
+and produce:
+
+forecast_YYYYMMDDHH.nc
+
+
+containing a complete 72-hour AI temperature forecast generated from ERA5-trained neural networks. That will give you a solid foundation before moving into multi-variable forecasting and eventually GraphCast/FourCastNet-style architectures.
