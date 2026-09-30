@@ -1,21 +1,32 @@
+#!/usr/bin/env python
+
 import numpy as np
 import pandas as pd
 import xarray as xr
 import matplotlib.pyplot as plt
-from pathlib import Path
 
+from pathlib import Path
 
 ##############################################################################
 # CONFIG
 ##############################################################################
 
-FORECAST_FILE = "forecasts/forecast_20260901_0000.nc"
+FORECAST_FILE = (
+    "forecasts/t2m_20260901_0000.nc"
+)
 
-TRUTH_DATASET = "data/era5-t2m-5deg.zarr"
+TRUTH_FILE = (
+    "data/truth.nc"
+)
 
-OUTPUT_DIR = Path("forecasts/plots")
-OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+OUTPUT_DIR = Path(
+    "forecasts/plots"
+)
 
+OUTPUT_DIR.mkdir(
+    parents=True,
+    exist_ok=True
+)
 
 ##############################################################################
 # LOAD DATA
@@ -27,9 +38,14 @@ fcst_ds = xr.open_dataset(
     FORECAST_FILE
 )
 
-forecast = fcst_ds["t2m_forecast"].values
+print("Loading truth...")
 
-lead_times = fcst_ds["lead_time"].values
+truth_ds = xr.open_dataset(
+    TRUTH_FILE
+)
+
+forecast = fcst_ds["t2m"].values
+truth_all = truth_ds["t2m"].values
 
 valid_times = pd.to_datetime(
     fcst_ds["valid_time"].values
@@ -38,54 +54,57 @@ valid_times = pd.to_datetime(
 lat = fcst_ds["latitude"].values
 lon = fcst_ds["longitude"].values
 
-print("Loading truth...")
+nlead = forecast.shape[0]
 
-truth_ds = xr.open_zarr(
-    TRUTH_DATASET
+print(
+    f"Forecast shape: {forecast.shape}"
 )
 
-era5_times = pd.to_datetime(
-    truth_ds["valid_time"].values
+print(
+    f"Truth shape: {truth_all.shape}"
 )
 
+##############################################################################
+# GLOBAL COLOR LIMITS
+##############################################################################
+
+temp_min = min(
+    np.nanmin(forecast),
+    np.nanmin(truth_all)
+)
+
+temp_max = max(
+    np.nanmax(forecast),
+    np.nanmax(truth_all)
+)
 
 ##############################################################################
 # PLOT LOOP
 ##############################################################################
 
-for i, valid_time in enumerate(valid_times):
+for i in range(nlead):
 
-    matches = np.where(
-        era5_times == valid_time
-    )[0]
-
-    if len(matches) == 0:
-
-        print(
-            f"No truth found for {valid_time}"
-        )
-
-        continue
-
-    idx = matches[0]
-
-    truth = (
-        truth_ds["t2m"]
-        .isel(valid_time=idx)
-        .values
-    )
+    truth = truth_all[i]
 
     fcst = forecast[i]
 
     error = fcst - truth
 
     rmse = np.sqrt(
-        np.mean(error ** 2)
+        np.nanmean(
+            error ** 2
+        )
     )
 
-    ##########################################################################
-    # FIGURE
-    ##########################################################################
+    mae = np.nanmean(
+        np.abs(error)
+    )
+
+    bias = np.nanmean(
+        error
+    )
+
+    lead_hr = (i + 1) * 6
 
     fig, axes = plt.subplots(
         1,
@@ -93,31 +112,34 @@ for i, valid_time in enumerate(valid_times):
         figsize=(18, 5)
     )
 
-    #
-    # Truth
-    #
+    ##########################################################################
+    # TRUTH
+    ##########################################################################
 
     im0 = axes[0].pcolormesh(
         lon,
         lat,
         truth,
         shading="auto",
-        cmap="coolwarm"
+        cmap="coolwarm",
+        vmin=temp_min,
+        vmax=temp_max
     )
 
     axes[0].set_title(
-        f"ERA5 Truth\n{valid_time}"
+        f"ERA5 Truth\n"
+        f"{valid_times[i]}"
     )
 
     plt.colorbar(
         im0,
         ax=axes[0],
-        label="K"
+        label="°C"
     )
 
-    #
-    # Forecast
-    #
+    ##########################################################################
+    # FORECAST
+    ##########################################################################
 
     im1 = axes[1].pcolormesh(
         lon,
@@ -125,25 +147,26 @@ for i, valid_time in enumerate(valid_times):
         fcst,
         shading="auto",
         cmap="coolwarm",
-        vmin=np.min(truth),
-        vmax=np.max(truth)
+        vmin=temp_min,
+        vmax=temp_max
     )
 
     axes[1].set_title(
-        f"Forecast\nLead lead_times[{i}] h"
+        f"Forecast\n"
+        f"Lead +{lead_hr} h"
     )
 
     plt.colorbar(
         im1,
         ax=axes[1],
-        label="K"
+        label="°C"
     )
 
-    #
-    # Error
-    #
+    ##########################################################################
+    # ERROR
+    ##########################################################################
 
-    vmax = np.max(
+    vmax = np.nanmax(
         np.abs(error)
     )
 
@@ -158,20 +181,25 @@ for i, valid_time in enumerate(valid_times):
     )
 
     axes[2].set_title(
-        f"Forecast Error\nRMSE={rmse:.2f} K"
+        f"Error\n"
+        f"RMSE={rmse:.2f}°C  "
+        f"MAE={mae:.2f}°C  "
+        f"BIAS={bias:.2f}°C"
     )
 
     plt.colorbar(
         im2,
         ax=axes[2],
-        label="K"
+        label="°C"
     )
+
+    ##########################################################################
 
     plt.tight_layout()
 
     outfile = (
-        OUTPUT_DIR
-        / f"lead_lead_times_{i:03d}.png"
+        OUTPUT_DIR /
+        f"lead_{lead_hr:03d}h.png"
     )
 
     plt.savefig(
@@ -180,7 +208,6 @@ for i, valid_time in enumerate(valid_times):
         bbox_inches="tight"
     )
 
-    # plt.show()
     plt.close()
 
     print(

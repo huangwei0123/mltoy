@@ -20,3 +20,6 @@ python -m scripts.evaluate \
     forecasts/t2m_20260901_0000.nc \
     data/truth.nc
 
+python tools/plot_forecast.py
+python tools/plot_metrics.py forecasts/t2m_20260901_0000.nc data/truth.nc
+
