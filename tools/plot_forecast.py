@@ -1,5 +1,8 @@
 #!/usr/bin/env python
 
+import argparse
+import os
+
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -11,22 +14,27 @@ from pathlib import Path
 # CONFIG
 ##############################################################################
 
-FORECAST_FILE = (
-    "forecasts/t2m_20260901_0000.nc"
-)
+parser = argparse.ArgumentParser( description=( "Evaluate forecast against truth"))
 
-TRUTH_FILE = (
-    "data/truth.nc"
-)
+parser.add_argument("--forecast", required=True, help="Forecast NetCDF file")
 
-OUTPUT_DIR = Path(
-    "forecasts/plots"
-)
+parser.add_argument("--truth", required=True, help="Truth NetCDF file")
 
-OUTPUT_DIR.mkdir(
-    parents=True,
-    exist_ok=True
-)
+parser.add_argument("--outdir", default="forecasts/plots")
+
+args = parser.parse_args()
+
+print(f"Loading forecast: {args.forecast}")
+
+print(f"Loading truth: {args.truth}")
+
+FORECAST_FILE = args.forecast
+
+TRUTH_FILE = args.truth
+
+OUTPUT_DIR = Path(args.outdir)
+
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 ##############################################################################
 # LOAD DATA
@@ -34,9 +42,7 @@ OUTPUT_DIR.mkdir(
 
 print("Loading forecast...")
 
-fcst_ds = xr.open_dataset(
-    FORECAST_FILE
-)
+fcst_ds = xr.open_dataset(FORECAST_FILE)
 
 print("Loading truth...")
 
@@ -197,21 +203,12 @@ for i in range(nlead):
 
     plt.tight_layout()
 
-    outfile = (
-        OUTPUT_DIR /
-        f"lead_{lead_hr:03d}h.png"
-    )
+    outfile = (f"{args.outdir}/lead_{lead_hr:03d}h.png")
 
-    plt.savefig(
-        outfile,
-        dpi=150,
-        bbox_inches="tight"
-    )
+    plt.savefig(outfile, dpi=300, bbox_inches="tight")
 
     plt.close()
 
-    print(
-        f"Saved {outfile}"
-    )
+    print(f"Saved {outfile}")
 
 print("Done.")

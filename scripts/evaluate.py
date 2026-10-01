@@ -28,46 +28,23 @@ def mae(fcst, truth):
 
 def main():
 
-    parser = argparse.ArgumentParser(
-        description=(
-            "Evaluate forecast against truth"
-        )
-    )
+    parser = argparse.ArgumentParser( description=( "Evaluate forecast against truth"))
 
-    parser.add_argument(
-        "--forecast",
-        required=True,
-        help="Forecast NetCDF file"
-    )
+    parser.add_argument("--forecast", required=True, help="Forecast NetCDF file")
 
-    parser.add_argument(
-        "--truth",
-        required=True,
-        help="Truth NetCDF file"
-    )
+    parser.add_argument("--truth", required=True, help="Truth NetCDF file")
 
-    parser.add_argument(
-        "--outdir",
-        default="forecasts"
-    )
+    parser.add_argument("--outdir", default="forecasts")
 
     args = parser.parse_args()
 
-    print(
-        f"Loading forecast: {args.forecast}"
-    )
+    print(f"Loading forecast: {args.forecast}")
 
-    print(
-        f"Loading truth: {args.truth}"
-    )
+    print(f"Loading truth: {args.truth}")
 
-    fcst_ds = xr.open_dataset(
-        args.forecast
-    )
+    fcst_ds = xr.open_dataset(args.forecast)
 
-    truth_ds = xr.open_dataset(
-        args.truth
-    )
+    truth_ds = xr.open_dataset(args.truth)
 
     ####################################################
     # Detect variable

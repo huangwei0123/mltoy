@@ -22,8 +22,8 @@ from training.trainer import Trainer
 from datetime import datetime
 
 STAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
-CHECKPOINT_FILE = f"data/t2m_cnn_{STAMP}.pt"
-LOG_FILE = f"logs/train_cnn_{STAMP}.log"
+MODEL_TYPE = "cnn"
+LOG_FILE = f"logs/train_{MODDEL_TYPE}_{STAMP}.log"
 
 def main():
 
@@ -248,55 +248,30 @@ def main():
         f"device={DEVICE})"
     )
 
-    checkpoint_file = (
-        "models/t2m_cnn.pt"
-    )
+    new_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    checkpoint_file = f"checkpoints/t2m_{MODDEL_TYPE}_{new_STAMP}.pt"
 
-    os.makedirs(
-        os.path.dirname(
-            checkpoint_file
-        ),
-        exist_ok=True
-    )
+    os.makedirs(os.path.dirname(checkpoint_file), exist_ok=True)
 
     for epoch in range(EPOCHS):
 
         epoch_start = time.time()
 
         train_loss = (
-            trainer.train_epoch(
-                train_loader
-            )
+            trainer.train_epoch(train_loader)
         )
 
         val_loss = (
-            trainer.validate(
-                val_loader
-            )
+            trainer.validate(val_loader)
         )
 
-        epoch_time = (
-            time.time()
-            - epoch_start
-        )
+        epoch_time = ( time.time() - epoch_start )
 
-        elapsed = (
-            time.time()
-            - training_start
-        )
+        elapsed = ( time.time() - training_start )
 
-        avg_epoch = (
-            elapsed / (epoch + 1)
-        )
+        avg_epoch = ( elapsed / (epoch + 1) )
 
-        eta = (
-            avg_epoch
-            * (
-                EPOCHS
-                - epoch
-                - 1
-            )
-        )
+        eta = ( avg_epoch * ( EPOCHS - epoch - 1 ) )
 
         msg = (
             f"Epoch "
@@ -317,16 +292,19 @@ def main():
 
         if val_loss < best_val_loss:
 
+            new_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            checkpoint_file = f"checkpoints/t2m_{MODDEL_TYPE}_{new_stamp}.pt"
+
             best_val_loss = val_loss
 
             torch.save(
                 {
+                    "model_type": f"{MODDEL_TYPE}",
                     "model_state_dict": model.state_dict(),
                     "mean": float(mean),
                     "std": float(std),
                     "history": int(HISTORY),
                     "forecast": int(FORECAST),
-                    "model_type": "cnn",
                     "best_val_loss": float(val_loss)
                 },
                 checkpoint_file

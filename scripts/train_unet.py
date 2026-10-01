@@ -22,8 +22,8 @@ from training.trainer import Trainer
 from datetime import datetime
 
 STAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
-CHECKPOINT_FILE = f"data/t2m_unet_{STAMP}.pt"
-LOG_FILE = f"logs/train_unet_{STAMP}.log"
+MODEL_TYPE = "unet"
+LOG_FILE = f"logs/train_{MODEL_TYPE}_{STAMP}.log"
 
 def main():
 
@@ -248,12 +248,7 @@ def main():
         f"device={DEVICE})"
     )
 
-    os.makedirs(
-        os.path.dirname(
-            CHECKPOINT_FILE
-        ),
-        exist_ok=True
-    )
+    os.makedirs("checkpoints", exist_ok=True)
 
     for epoch in range(EPOCHS):
 
@@ -315,23 +310,26 @@ def main():
 
             best_val_loss = val_loss
 
+            new_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            checkpoint_file = f"checkpoints/t2m_{MODEL_TYPE}_{new_stamp}.pt"
+
             torch.save(
                 {
+                    "model_type": f"{MODEL_TYPE}",
                     "model_state_dict": model.state_dict(),
                     # PyTorch 2.6 safe
                     "mean": float(mean),
                     "std": float(std),
                     "history": int(HISTORY),
                     "forecast": int(FORECAST),
-                    "model_type": "unet",
                     "best_val_loss": float(val_loss)
                 },
-                CHECKPOINT_FILE
+                checkpoint_file
             )
 
             logger.info(
                 f"Checkpoint saved "
-                f"({CHECKPOINT_FILE}) "
+                f"({checkpoint_file}) "
                 f"val={val_loss:.6f}"
             )
 

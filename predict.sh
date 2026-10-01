@@ -11,9 +11,11 @@ if [[ ! -f data/truth.nc ]]; then
 fi
 
 model_type=unet
+#model_type=cnn
 ckpt_stamp=20260930_175403
 fcst_stamp=20260901-0000
-ckpt_file=data/t2m_${model_type}_${ckpt_stamp}.pt
+#ckpt_file=data/t2m_${model_type}_${ckpt_stamp}.pt
+ckpt_file=checkpoints/t2m_${model_type}.pt
 output=forecasts/t2m_${fcst_stamp}_${model_type}_${ckpt_stamp}.nc
 
 if [[ ! -f ${output} ]]; then
@@ -29,6 +31,10 @@ python -m scripts.evaluate \
   --truth data/truth.nc \
   --outdir forecasts/plot_${model_type}_${ckpt_stamp}
 
-python tools/plot_forecast.py
+python tools/plot_forecast.py \
+  --forecast ${output} \
+  --truth data/truth.nc \
+  --outdir forecasts/plot_${model_type}_${ckpt_stamp}
+
 python tools/plot_metrics.py ${output} data/truth.nc
 
