@@ -19,6 +19,11 @@ from models.forecast_cnn import ForecastCNN
 
 from training.trainer import Trainer
 
+from datetime import datetime
+
+STAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
+CHECKPOINT_FILE = f"data/t2m_cnn_{STAMP}.pt"
+LOG_FILE = f"logs/train_cnn_{STAMP}.log"
 
 def main():
 

@@ -8,7 +8,3 @@ EPOCHS = 20
 LR = 1e-3
 
 DEVICE = "cpu"
-
-# CHECKPOINT_FILE = "data/t2m_cpu.pt"
-CHECKPOINT_FILE = "data/t2m_cnn.pt"
-LOG_FILE = "logs/train_cnn.log"

@@ -4,11 +4,15 @@ import argparse
 
 import xarray as xr
 
-from forecasts import (
-    Predictor,
-    build_input_tensor,
-    save_forecast,
-)
+from forecasts.predictor import Predictor
+from forecasts.input_builder import build_input_tensor
+from forecasts.netcdf_writer import save_forecast
+
+# from forecasts import (
+#     Predictor,
+#     build_input_tensor,
+#     save_forecast,
+# )
 
 def main():
 

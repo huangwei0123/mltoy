@@ -19,6 +19,11 @@ from models.forecast_unet import ForecastUNet
 
 from training.trainer import Trainer
 
+from datetime import datetime
+
+STAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
+CHECKPOINT_FILE = f"data/t2m_unet_{STAMP}.pt"
+LOG_FILE = f"logs/train_unet_{STAMP}.log"
 
 def main():
 

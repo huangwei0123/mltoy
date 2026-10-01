@@ -10,16 +10,25 @@ if [[ ! -f data/truth.nc ]]; then
         --output data/truth.nc
 fi
 
-python -m scripts.predict \
-    --checkpoint data/t2m_cpu.pt \
-    --input data/era5-t2m-5deg.zarr \
-    --start 20260901-0000 \
-    --output forecasts/t2m_20260901_0000.nc
+model_type=unet
+ckpt_stamp=20260930_175403
+fcst_stamp=20260901-0000
+ckpt_file=data/t2m_${model_type}_${ckpt_stamp}.pt
+output=forecasts/t2m_${fcst_stamp}_${model_type}_${ckpt_stamp}.nc
+
+if [[ ! -f ${output} ]]; then
+    python -m scripts.predict \
+        --checkpoint ${ckpt_file} \
+        --input data/era5-t2m-5deg.zarr \
+        --start ${fcst_stamp} \
+        --output ${output}
+fi
 
 python -m scripts.evaluate \
-    forecasts/t2m_20260901_0000.nc \
-    data/truth.nc
+  --forecast ${output} \
+  --truth data/truth.nc \
+  --outdir forecasts/plot_${model_type}_${ckpt_stamp}
 
 python tools/plot_forecast.py
-python tools/plot_metrics.py forecasts/t2m_20260901_0000.nc data/truth.nc
+python tools/plot_metrics.py ${output} data/truth.nc
 
