@@ -23,7 +23,7 @@ from datetime import datetime
 
 STAMP = datetime.now().strftime("%Y%m%d_%H%M%S")
 MODEL_TYPE = "cnn"
-LOG_FILE = f"logs/train_{MODDEL_TYPE}_{STAMP}.log"
+LOG_FILE = f"logs/train_{MODEL_TYPE}_{STAMP}.log"
 
 def main():
 
@@ -249,7 +249,7 @@ def main():
     )
 
     new_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    checkpoint_file = f"checkpoints/t2m_{MODDEL_TYPE}_{new_STAMP}.pt"
+    checkpoint_file = f"checkpoints/t2m_{MODEL_TYPE}_{new_stamp}.pt"
 
     os.makedirs(os.path.dirname(checkpoint_file), exist_ok=True)
 
@@ -293,13 +293,13 @@ def main():
         if val_loss < best_val_loss:
 
             new_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            checkpoint_file = f"checkpoints/t2m_{MODDEL_TYPE}_{new_stamp}.pt"
+            checkpoint_file = f"checkpoints/t2m_{MODEL_TYPE}_{new_stamp}.pt"
 
             best_val_loss = val_loss
 
             torch.save(
                 {
-                    "model_type": f"{MODDEL_TYPE}",
+                    "model_type": f"{MODEL_TYPE}",
                     "model_state_dict": model.state_dict(),
                     "mean": float(mean),
                     "std": float(std),
