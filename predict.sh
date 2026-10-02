@@ -10,13 +10,13 @@ if [[ ! -f data/truth.nc ]]; then
         --output data/truth.nc
 fi
 
-model_type=fno
 #model_type=unet
 #model_type=cnn
-ckpt_stamp=20261002_090531
+#model_type=fno
+model_type=graphcast
+ckpt_stamp=20261002_144220
 fcst_stamp=20260901-0000
 ckpt_file=checkpoints/t2m_${model_type}_${ckpt_stamp}.pt
-#ckpt_file=checkpoints/t2m_${model_type}.pt
 output=forecasts/t2m_${fcst_stamp}_${model_type}_${ckpt_stamp}.nc
 
 if [[ ! -f ${output} ]]; then
