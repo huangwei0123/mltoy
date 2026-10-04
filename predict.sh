@@ -14,7 +14,7 @@ fi
 #model_type=cnn
 #model_type=fno
 model_type=graphcast
-ckpt_stamp=20261002_144220
+ckpt_stamp=20261004_074720
 fcst_stamp=20260901-0000
 ckpt_file=checkpoints/t2m_${model_type}_${ckpt_stamp}.pt
 output=forecasts/t2m_${fcst_stamp}_${model_type}_${ckpt_stamp}.nc
