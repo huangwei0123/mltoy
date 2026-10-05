@@ -54,6 +54,8 @@ def main():
         args.start
     )
 
+    print("input shape:", x.shape)
+
     forecast = predictor.predict(
         x
     )

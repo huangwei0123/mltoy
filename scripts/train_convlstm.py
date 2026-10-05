@@ -7,6 +7,8 @@ import torch
 
 from torch.utils.data import DataLoader
 
+from datetime import datetime
+
 from utils.config import *
 from utils.logger import LoggerFactory
 
@@ -19,14 +21,14 @@ from models.forecast_convlstm import ForecastConvLSTM
 
 from training.trainer import Trainer
 
-from datetime import datetime
-
 
 STAMP = datetime.now().strftime(
     "%Y%m%d_%H%M%S"
 )
 
 MODEL_TYPE = "convlstm"
+BATCH_SIZE = 32
+NUM_WORKERS = 8
 
 LOG_FILE = (
     f"logs/train_{MODEL_TYPE}_{STAMP}.log"
@@ -194,19 +196,66 @@ def main():
     )
 
     ########################################################
+    # DataLoader Optimization
+    ########################################################
+
+    cpu_count = os.cpu_count()
+
+    if cpu_count is None:
+        cpu_count = 4
+
+    num_workers = min(
+        8,
+        max(
+            1,
+            cpu_count // 2
+        )
+    )
+
+    logger.info(
+        f"CPU cores detected = {cpu_count}"
+    )
+
+    logger.info(
+        f"DataLoader workers = {num_workers}"
+    )
+
+    ########################################################
     # Dataloaders
     ########################################################
 
     train_loader = DataLoader(
         train_ds,
         batch_size=BATCH_SIZE,
-        shuffle=True
+        shuffle=True,
+        num_workers=num_workers,
+        persistent_workers=True,
+        prefetch_factor=4
     )
 
     val_loader = DataLoader(
         val_ds,
         batch_size=BATCH_SIZE,
-        shuffle=False
+        shuffle=False,
+        num_workers=num_workers,
+        persistent_workers=True,
+        prefetch_factor=4
+    )
+
+    logger.info(
+        f"Train samples = {len(train_ds)}"
+    )
+
+    logger.info(
+        f"Validation samples = {len(val_ds)}"
+    )
+
+    logger.info(
+        f"Train batches = {len(train_loader)}"
+    )
+
+    logger.info(
+        f"Validation batches = {len(val_loader)}"
     )
 
     ########################################################
@@ -309,9 +358,14 @@ def main():
             f"ETA={eta/60:.1f} min"
         )
 
-        print(msg)
+        print(
+            msg,
+            flush=True
+        )
 
-        logger.info(msg)
+        logger.info(
+            msg
+        )
 
         ####################################################
         # Save best checkpoint
@@ -335,14 +389,13 @@ def main():
             torch.save(
                 {
                     "model_type": MODEL_TYPE,
-                    "model_state_dict":
-                        model.state_dict(),
+                    "model_state_dict": model.state_dict(),
                     "mean": float(mean),
                     "std": float(std),
                     "history": int(HISTORY),
                     "forecast": int(FORECAST),
-                    "best_val_loss":
-                        float(val_loss)
+                    "hidden_dim": model.hidden_dim,
+                    "best_val_loss": float(val_loss)
                 },
                 checkpoint_file
             )
@@ -374,3 +427,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

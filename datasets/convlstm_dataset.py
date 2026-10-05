@@ -1,3 +1,5 @@
+# datasets/convlstm_dataset.py
+
 import numpy as np
 import torch
 
@@ -15,38 +17,112 @@ class ConvLSTMDataset(Dataset):
         cos_doy,
         lat_grid,
         history,
-        forecast
+        forecast,
     ):
         """
-        temperature:
+        Parameters
+        ----------
+        temperature
             (time, lat, lon)
 
-        time features:
+        sin_hour, cos_hour
             (time,)
 
-        lat_grid:
+        sin_doy, cos_doy
+            (time,)
+
+        lat_grid
             (lat, lon)
+
+        history
+            Number of input timesteps
+
+        forecast
+            Number of forecast timesteps
         """
-
-        self.temperature = temperature
-
-        self.sin_hour = sin_hour
-        self.cos_hour = cos_hour
-
-        self.sin_doy = sin_doy
-        self.cos_doy = cos_doy
-
-        self.lat_grid = lat_grid
 
         self.history = history
         self.forecast = forecast
 
+        #
+        # Ensure float32
+        #
+        self.temperature = np.asarray(
+            temperature,
+            dtype=np.float32
+        )
+
+        nt = self.temperature.shape[0]
+        nlat = self.temperature.shape[1]
+        nlon = self.temperature.shape[2]
+
+        #
+        # Precompute feature grids
+        #
+        # features:
+        # (time, 5, lat, lon)
+        #
+        # channel 0 = sin_hour
+        # channel 1 = cos_hour
+        # channel 2 = sin_doy
+        # channel 3 = cos_doy
+        # channel 4 = latitude
+        #
+        self.features = np.empty(
+            (nt, 5, nlat, nlon),
+            dtype=np.float32
+        )
+
+        self.features[:, 0] = (
+            np.asarray(
+                sin_hour,
+                dtype=np.float32
+            )[:, None, None]
+        )
+
+        self.features[:, 1] = (
+            np.asarray(
+                cos_hour,
+                dtype=np.float32
+            )[:, None, None]
+        )
+
+        self.features[:, 2] = (
+            np.asarray(
+                sin_doy,
+                dtype=np.float32
+            )[:, None, None]
+        )
+
+        self.features[:, 3] = (
+            np.asarray(
+                cos_doy,
+                dtype=np.float32
+            )[:, None, None]
+        )
+
+        self.features[:, 4] = (
+            np.asarray(
+                lat_grid,
+                dtype=np.float32
+            )[None, :, :]
+        )
+
         self.length = (
-            len(temperature)
+            nt
             - history
             - forecast
             + 1
         )
+
+        if self.length <= 0:
+            raise ValueError(
+                f"Dataset length becomes "
+                f"{self.length}. "
+                f"history={history}, "
+                f"forecast={forecast}, "
+                f"nt={nt}"
+            )
 
     def __len__(self):
         return self.length
@@ -54,123 +130,57 @@ class ConvLSTMDataset(Dataset):
     def __getitem__(self, idx):
 
         ####################################################
-        # History temperatures
+        # Input history temperatures
         ####################################################
 
-        history = self.temperature[
+        temp_hist = self.temperature[
             idx : idx + self.history
         ]
 
+        #
+        # (history, 1, lat, lon)
+        #
+        temp_hist = temp_hist[:, None, :, :]
+
         ####################################################
-        # Future targets
+        # Time/static features
         ####################################################
 
-        target = self.temperature[
+        feat_hist = self.features[
+            idx : idx + self.history
+        ]
+
+        #
+        # x:
+        # (history, 6, lat, lon)
+        #
+        x = np.concatenate(
+            (
+                temp_hist,
+                feat_hist,
+            ),
+            axis=1
+        )
+
+        ####################################################
+        # Forecast targets
+        ####################################################
+
+        y = self.temperature[
             idx + self.history :
             idx + self.history + self.forecast
         ]
 
-        ####################################################
-        # Grid size
-        ####################################################
-
-        lat_size = history.shape[1]
-        lon_size = history.shape[2]
-
-        ####################################################
-        # Build ConvLSTM input
-        #
-        # Output:
-        # (history, 6, lat, lon)
-        ####################################################
-
-        frames = []
-
-        for t in range(self.history):
-
-            current_index = idx + t
-
-            ################################################
-            # Temperature
-            ################################################
-
-            temp_channel = history[t]
-
-            ################################################
-            # Temporal features
-            ################################################
-
-            sin_h = np.full(
-                (lat_size, lon_size),
-                self.sin_hour[current_index],
-                dtype=np.float32
-            )
-
-            cos_h = np.full(
-                (lat_size, lon_size),
-                self.cos_hour[current_index],
-                dtype=np.float32
-            )
-
-            sin_d = np.full(
-                (lat_size, lon_size),
-                self.sin_doy[current_index],
-                dtype=np.float32
-            )
-
-            cos_d = np.full(
-                (lat_size, lon_size),
-                self.cos_doy[current_index],
-                dtype=np.float32
-            )
-
-            ################################################
-            # Frame
-            ################################################
-
-            frame = np.stack(
-                [
-                    temp_channel,
-                    sin_h,
-                    cos_h,
-                    sin_d,
-                    cos_d,
-                    self.lat_grid
-                ],
-                axis=0
-            )
-
-            frames.append(frame)
-
-        ####################################################
-        # x
-        ####################################################
-
-        x = np.stack(
-            frames,
-            axis=0
-        )
-
-        ####################################################
-        # y
         #
         # (forecast, 1, lat, lon)
-        ####################################################
-
-        y = target[:, np.newaxis, :, :]
+        #
+        y = y[:, None, :, :]
 
         ####################################################
         # Torch tensors
         ####################################################
 
-        x = torch.tensor(
-            x,
-            dtype=torch.float32
-        )
-
-        y = torch.tensor(
-            y,
-            dtype=torch.float32
-        )
+        x = torch.from_numpy(x)
+        y = torch.from_numpy(y)
 
         return x, y
