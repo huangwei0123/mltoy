@@ -11,12 +11,9 @@ def save_forecast(
     start_time=None
 ):
 
-    forecast = (
-        forecast * predictor.std
-        + predictor.mean
-    )
-
-    forecast = forecast[0]
+    # Remove batch dimension only if present.
+    if forecast.ndim == 4:
+        forecast = forecast[0]
 
     # ConvLSTM:
     # (forecast, 1, lat, lon)

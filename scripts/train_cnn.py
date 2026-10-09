@@ -2,6 +2,7 @@
 
 import os
 import time
+import pickle
 
 import torch
 
@@ -12,7 +13,7 @@ from utils.logger import LoggerFactory
 
 from utils.data_loader import ERA5DataLoader
 from utils.feature_builder import FeatureBuilder
-
+from utils.climatology import ClimatologyBuilder
 from datasets.forecast_dataset import ForecastDataset
 
 from models.forecast_cnn import ForecastCNN
@@ -41,7 +42,20 @@ def main():
 
     ds, temp, times = loader.load()
 
+    logger.info("Building climatology...")
+
+    climatology = (ClimatologyBuilder.compute( temp, times))
+
+    logger.info("Creating anomalies...")
+
+    temp = (ClimatologyBuilder.anomaly( temp, times, climatology))
+
     logger.info(f"Temperature shape: {temp.shape}")
+
+    os.makedirs("checkpoints", exist_ok=True)
+
+    with open("checkpoints/climatology.pkl", "wb") as f:
+        pickle.dump(climatology, f)
 
     ########################################################
     # Split
@@ -190,27 +204,28 @@ def main():
         # Save best checkpoint
         ####################################################
 
+        new_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         if val_loss < best_val_loss:
-
-            new_stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-            checkpoint_file = f"checkpoints/t2m_{MODEL_TYPE}_{new_stamp}.pt"
-
             best_val_loss = val_loss
+            checkpoint_file = f"checkpoints/t2m_{MODEL_TYPE}_epoch{epoch+1}_{new_stamp}.pt"
+        else:
+            checkpoint_file = f"checkpoints/skip_t2m_{MODEL_TYPE}_epoch{epoch+1}_{new_stamp}.pt"
 
-            torch.save(
-                {
-                    "model_type": f"{MODEL_TYPE}",
-                    "model_state_dict": model.state_dict(),
-                    "mean": float(mean),
-                    "std": float(std),
-                    "history": int(HISTORY),
-                    "forecast": int(FORECAST),
-                    "best_val_loss": float(val_loss)
-                },
-                checkpoint_file
-            )
+        torch.save(
+            {
+                "model_type": f"{MODEL_TYPE}",
+                "model_state_dict": model.state_dict(),
+                "mean": float(mean),
+                "std": float(std),
+                "history": int(HISTORY),
+                "forecast": int(FORECAST),
+                "epoch": int(epoch+1),
+                "best_val_loss": float(val_loss)
+            },
+            checkpoint_file
+        )
 
-            logger.info(f"Checkpoint saved ({checkpoint_file}), val={val_loss:.6f}")
+        logger.info(f"Checkpoint saved ({checkpoint_file}), val={val_loss:.6f}")
 
     total_minutes = (time.time() - training_start) / 60.0
 

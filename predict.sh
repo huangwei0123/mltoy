@@ -10,19 +10,21 @@ if [[ ! -f data/truth.nc ]]; then
         --output data/truth.nc
 fi
 
-model_type=unet
-#model_type=cnn
+epoch=10
+#model_type=unet
+model_type=cnn
 #model_type=fno
 #model_type=graphcast
 #model_type=convlstm
-ckpt_stamp=20261008_145354
+ckpt_stamp=20261009_151532
 fcst_stamp=20260901-0000
-ckpt_file=checkpoints/t2m_${model_type}_${ckpt_stamp}.pt
-output=forecasts/t2m_${fcst_stamp}_${model_type}_${ckpt_stamp}.nc
+ckpt_file=checkpoints/t2m_${model_type}_epoch${epoch}_${ckpt_stamp}.pt
+output=output/t2m_${fcst_stamp}_${model_type}_${ckpt_stamp}.nc
 
 if [[ ! -f ${output} ]]; then
     python -m scripts.predict \
         --checkpoint ${ckpt_file} \
+        --climatology checkpoints/climatology.pkl \
         --input data/era5-t2m-5deg.zarr \
         --start ${fcst_stamp} \
         --output ${output}
@@ -31,12 +33,16 @@ fi
 python -m scripts.evaluate \
   --forecast ${output} \
   --truth data/truth.nc \
-  --outdir forecasts/plot_${model_type}_${ckpt_stamp}
+  --outdir output/plot_${model_type}_${ckpt_stamp}
 
 python tools/plot_forecast.py \
   --forecast ${output} \
   --truth data/truth.nc \
-  --outdir forecasts/plot_${model_type}_${ckpt_stamp}
+  --outdir output/plot_${model_type}_${ckpt_stamp}
 
 python tools/plot_metrics.py ${output} data/truth.nc
 
+python -m scripts.evaluate_persistence \
+  --input data/era5-t2m-5deg.zarr \
+  --start 20260901-0000 \
+  --forecast 12

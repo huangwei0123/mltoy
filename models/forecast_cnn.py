@@ -36,7 +36,6 @@ class ForecastCNN(nn.Module):
                 kernel_size=3,
                 padding=1
             ),
-
             nn.ReLU(inplace=True),
 
             nn.Conv2d(

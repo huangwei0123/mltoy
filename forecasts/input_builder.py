@@ -1,16 +1,16 @@
 import numpy as np
 import pandas as pd
 import torch
+import pickle
 
-from utils.feature_builder import (
-    FeatureBuilder
-)
+from utils.feature_builder import FeatureBuilder
 
 
 def build_input_tensor(
     ds,
     predictor,
-    start_time=None
+    start_time=None,
+    climatology=None
 ):
 
     temp = ds["t2m"].values.astype(
@@ -54,6 +54,23 @@ def build_input_tensor(
             )
 
         current_idx = matches[0]
+
+        if climatology is not None:
+
+            anomaly = np.empty_like(temp)
+
+            for i, t in enumerate(times):
+
+                doy = t.dayofyear
+                cycle = t.hour // 6
+
+                anomaly[i] = (
+                    temp[i]
+                    -
+                    climatology[(doy, cycle)]
+                )
+
+            temp = anomaly
 
     temp = (
         temp - predictor.mean

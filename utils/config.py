@@ -4,7 +4,8 @@ HISTORY = 8
 FORECAST = 12
 
 BATCH_SIZE = 16
-EPOCHS = 40
-LR = 1e-3
+EPOCHS = 20
+# LR = 1e-3
+LR = 1e-2
 
 DEVICE = "cpu"

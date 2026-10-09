@@ -20,7 +20,7 @@ parser.add_argument("--forecast", required=True, help="Forecast NetCDF file")
 
 parser.add_argument("--truth", required=True, help="Truth NetCDF file")
 
-parser.add_argument("--outdir", default="forecasts/plots")
+parser.add_argument("--outdir", default="output/plots")
 
 args = parser.parse_args()
 

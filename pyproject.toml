@@ -35,5 +35,9 @@ include = [
 [project.scripts]
 train-cnn = "scripts.train_cnn:main"
 train-unet = "scripts.train_unet:main"
+train-fno = "scripts.train_fno:main"
+train-graphcast = "scripts.train_graphcast:main"
+train-convlstm = "scripts.train_convlstm:main"
+train-transformer = "scripts.train_transformer:main"
 predict-t2m = "scripts.predict:main"
 evaluate-t2m = "scripts.evaluate:main"

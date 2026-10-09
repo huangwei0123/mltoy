@@ -1,10 +1,11 @@
 data
-forecasts
 logs
+output
 log.*
 models/__pycache__/
 scripts/__pycache__/
 datasets/__pycache__/
 training/__pycache__/
 utils/__pycache__/
+forecasts/__pycache__/
 

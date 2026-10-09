@@ -110,14 +110,9 @@ def main():
             f"{obs.shape}"
         )
 
-    output_dir = Path(
-        "forecasts/plots"
-    )
+    output_dir = Path("output/plots")
 
-    output_dir.mkdir(
-        parents=True,
-        exist_ok=True
-    )
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     leads = []
     rmse_list = []
