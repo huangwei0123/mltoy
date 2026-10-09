@@ -5,11 +5,12 @@ import time
 
 import torch
 
+import argparse
+
 from torch.utils.data import DataLoader
 
 from utils.config import *
 from utils.logger import LoggerFactory
-
 from utils.data_loader import ERA5DataLoader
 from utils.feature_builder import FeatureBuilder
 
@@ -27,31 +28,26 @@ LOG_FILE = f"logs/train_{MODEL_TYPE}_{STAMP}.log"
 
 def main():
 
-    logger = LoggerFactory.create(
-        LOG_FILE
-    )
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--checkpoint", default=None, help="checkpoint file")
+    parser.add_argument("--freeze-encoder", action="store_true")
 
-    logger.info(
-        "Starting training run"
-    )
+    args = parser.parse_args()
+
+    logger = LoggerFactory.create(LOG_FILE)
+    logger.info("Starting training run")
 
     ########################################################
     # Load ERA5
     ########################################################
 
-    loader = ERA5DataLoader(
-        DATASET
-    )
+    loader = ERA5DataLoader(DATASET)
 
-    logger.info(
-        "Loading ZARR dataset..."
-    )
+    logger.info("Loading ZARR dataset...")
 
     ds, temp, times = loader.load()
 
-    logger.info(
-        f"Temperature shape: {temp.shape}"
-    )
+    logger.info(f"Temperature shape: {temp.shape}")
 
     ########################################################
     # Split
@@ -210,14 +206,54 @@ def main():
     model = ForecastUNet(
         input_channels=HISTORY + 5,
         forecast_steps=FORECAST
-    ).to(
-        DEVICE
     )
+
+########################################################
+# Load CNN encoder
+########################################################
+
+    model = ForecastUNet(
+        input_channels=HISTORY + 5,
+        forecast_steps=FORECAST
+    )
+
+    if args.checkpoint:
+
+        logger.info(f"Loading saved checkpoint file from {args.checkpoint}")
+
+        ckpt = torch.load(args.checkpoint, map_location=DEVICE)
+        model.load_state_dict(ckpt["model_state_dict"])
+        # start_epoch = ckpt["epoch"] + 1
+        start_epoch = 21
+        best_val_loss = ckpt["best_val_loss"]
+
+########################################################
+# Optional freeze
+########################################################
+
+    if args.freeze_encoder:
+
+        logger.info(
+            "Freezing encoder"
+        )
+
+        if hasattr(model, "enc1"):
+
+            for p in model.enc1.parameters():
+                p.requires_grad = False
+
+        if hasattr(model, "enc2"):
+
+            for p in model.enc2.parameters():
+                p.requires_grad = False
+
+    model = model.to(DEVICE)
 
     criterion = (
         torch.nn.MSELoss()
     )
 
+    # optimizer.load_state_dict(ckpt["optimizer_state_dict"])
     optimizer = (
         torch.optim.Adam(
             model.parameters(),
@@ -322,6 +358,7 @@ def main():
                     "std": float(std),
                     "history": int(HISTORY),
                     "forecast": int(FORECAST),
+                    "epoch": int(epoch),
                     "best_val_loss": float(val_loss)
                 },
                 checkpoint_file

@@ -27,82 +27,43 @@ LOG_FILE = f"logs/train_{MODEL_TYPE}_{STAMP}.log"
 
 def main():
 
-    logger = LoggerFactory.create(
-        LOG_FILE
-    )
+    logger = LoggerFactory.create(LOG_FILE)
 
-    logger.info(
-        "Starting CNN training run"
-    )
+    logger.info("Starting CNN training run")
 
     ########################################################
     # Load ERA5
     ########################################################
 
-    loader = ERA5DataLoader(
-        DATASET
-    )
+    loader = ERA5DataLoader(DATASET)
 
-    logger.info(
-        "Loading ZARR dataset..."
-    )
+    logger.info("Loading ZARR dataset...")
 
     ds, temp, times = loader.load()
 
-    logger.info(
-        f"Temperature shape: {temp.shape}"
-    )
+    logger.info(f"Temperature shape: {temp.shape}")
 
     ########################################################
     # Split
     ########################################################
 
-    (
-        train,
-        val,
-        test,
-        train_end,
-        val_end
-    ) = loader.split(
-        temp
-    )
+    (train, val, test, train_end, val_end) = loader.split(temp)
 
     ########################################################
     # Normalize
     ########################################################
 
-    (
-        train,
-        val,
-        test,
-        mean,
-        std
-    ) = loader.normalize(
-        train,
-        val,
-        test
-    )
+    (train, val, test, mean, std) = loader.normalize( train, val, test)
 
-    logger.info(
-        f"Mean={mean:.6f}"
-    )
+    logger.info(f"Mean={mean:.6f}")
 
-    logger.info(
-        f"Std={std:.6f}"
-    )
+    logger.info(f"Std={std:.6f}")
 
     ########################################################
     # Features
     ########################################################
 
-    (
-        sin_hour,
-        cos_hour,
-        sin_doy,
-        cos_doy
-    ) = FeatureBuilder.build_time_features(
-        times
-    )
+    (sin_hour, cos_hour, sin_doy, cos_doy) = FeatureBuilder.build_time_features(times)
 
     lat_grid = (
         FeatureBuilder.build_latitude_feature(
@@ -117,49 +78,19 @@ def main():
     # Train feature slices
     ########################################################
 
-    train_sin_hour = (
-        sin_hour[:train_end]
-    )
-
-    train_cos_hour = (
-        cos_hour[:train_end]
-    )
-
-    train_sin_doy = (
-        sin_doy[:train_end]
-    )
-
-    train_cos_doy = (
-        cos_doy[:train_end]
-    )
+    train_sin_hour = (sin_hour[:train_end])
+    train_cos_hour = (cos_hour[:train_end])
+    train_sin_doy = (sin_doy[:train_end])
+    train_cos_doy = (cos_doy[:train_end])
 
     ########################################################
     # Validation slices
     ########################################################
 
-    val_sin_hour = (
-        sin_hour[
-            train_end:val_end
-        ]
-    )
-
-    val_cos_hour = (
-        cos_hour[
-            train_end:val_end
-        ]
-    )
-
-    val_sin_doy = (
-        sin_doy[
-            train_end:val_end
-        ]
-    )
-
-    val_cos_doy = (
-        cos_doy[
-            train_end:val_end
-        ]
-    )
+    val_sin_hour = (sin_hour[ train_end:val_end ])
+    val_cos_hour = (cos_hour[ train_end:val_end ])
+    val_sin_doy = (sin_doy[ train_end:val_end ])
+    val_cos_doy = (cos_doy[ train_end:val_end ])
 
     ########################################################
     # Datasets
@@ -191,17 +122,8 @@ def main():
     # Dataloaders
     ########################################################
 
-    train_loader = DataLoader(
-        train_ds,
-        batch_size=BATCH_SIZE,
-        shuffle=True
-    )
-
-    val_loader = DataLoader(
-        val_ds,
-        batch_size=BATCH_SIZE,
-        shuffle=False
-    )
+    train_loader = DataLoader(train_ds, batch_size=BATCH_SIZE, shuffle=True)
+    val_loader = DataLoader(val_ds, batch_size=BATCH_SIZE, shuffle=False)
 
     ########################################################
     # Model
@@ -214,16 +136,8 @@ def main():
         DEVICE
     )
 
-    criterion = (
-        torch.nn.MSELoss()
-    )
-
-    optimizer = (
-        torch.optim.Adam(
-            model.parameters(),
-            lr=LR
-        )
-    )
+    criterion = (torch.nn.MSELoss())
+    optimizer = (torch.optim.Adam(model.parameters(), lr=LR))
 
     trainer = Trainer(
         model=model,
@@ -254,25 +168,13 @@ def main():
     os.makedirs(os.path.dirname(checkpoint_file), exist_ok=True)
 
     for epoch in range(EPOCHS):
-
         epoch_start = time.time()
-
-        train_loss = (
-            trainer.train_epoch(train_loader)
-        )
-
-        val_loss = (
-            trainer.validate(val_loader)
-        )
-
-        epoch_time = ( time.time() - epoch_start )
-
-        elapsed = ( time.time() - training_start )
-
-        avg_epoch = ( elapsed / (epoch + 1) )
-
-        eta = ( avg_epoch * ( EPOCHS - epoch - 1 ) )
-
+        train_loss = (trainer.train_epoch(train_loader))
+        val_loss = (trainer.validate(val_loader))
+        epoch_time = (time.time() - epoch_start )
+        elapsed = (time.time() - training_start )
+        avg_epoch = (elapsed / (epoch + 1) )
+        eta = (avg_epoch * ( EPOCHS - epoch - 1 ) )
         msg = (
             f"Epoch "
             f"{epoch+1:03d}/{EPOCHS} "
@@ -281,9 +183,7 @@ def main():
             f"EpochTime={epoch_time:.1f}s "
             f"ETA={eta/60:.1f} min"
         )
-
         print(msg)
-
         logger.info(msg)
 
         ####################################################
@@ -310,25 +210,13 @@ def main():
                 checkpoint_file
             )
 
-            logger.info(
-                f"Checkpoint saved "
-                f"({checkpoint_file}) "
-                f"val={val_loss:.6f}"
-            )
+            logger.info(f"Checkpoint saved ({checkpoint_file}), val={val_loss:.6f}")
 
-    total_minutes = (
-        time.time()
-        - training_start
-    ) / 60.0
+    total_minutes = (time.time() - training_start) / 60.0
 
-    logger.info(
-        f"Training finished "
-        f"runtime={total_minutes:.2f} min"
-    )
+    logger.info(f"Training finished runtime={total_minutes:.2f} min")
 
-    print(
-        "Training complete."
-    )
+    print("Training complete.")
 
 
 if __name__ == "__main__":
