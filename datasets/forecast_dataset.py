@@ -14,6 +14,8 @@ class ForecastDataset(Dataset):
         sin_doy,
         cos_doy,
         lat_grid,
+        sin_lon_grid,
+        cos_lon_grid,
         history,
         forecast
     ):
@@ -23,10 +25,12 @@ class ForecastDataset(Dataset):
         self.sin_hour = sin_hour
         self.cos_hour = cos_hour
 
-        self.sin_doy = sin_doy
         self.cos_doy = cos_doy
+        self.sin_doy = sin_doy
 
         self.lat_grid = lat_grid
+        self.sin_lon_grid = sin_lon_grid
+        self.cos_lon_grid = cos_lon_grid
 
         self.history = history
         self.forecast = forecast
@@ -75,6 +79,8 @@ class ForecastDataset(Dataset):
         )
 
         lat = self.lat_grid[np.newaxis, :, :]
+        sin_lon = self.sin_lon_grid[ np.newaxis ]
+        cos_lon = self.cos_lon_grid[ np.newaxis ]
 
         x = np.concatenate(
             [
@@ -83,7 +89,9 @@ class ForecastDataset(Dataset):
                 ch,
                 sd,
                 cd,
-                lat
+                lat,
+                sin_lon,
+                cos_lon
             ],
             axis=0
         )

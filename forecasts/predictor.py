@@ -41,7 +41,7 @@ class Predictor:
 
         self.model = create_model(
             self.model_type,
-            input_channels=self.history + 5,
+            input_channels=self.history + 7,
             forecast_steps=self.forecast,
 
             width=checkpoint.get("width", 64),

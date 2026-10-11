@@ -82,9 +82,14 @@ def main():
     lat_grid = (
         FeatureBuilder.build_latitude_feature(
             ds["latitude"].values,
-            len(
-                ds["longitude"]
-            )
+            len(ds["longitude"])
+        )
+    )
+
+    (sin_lon_grid, cos_lon_grid) = (
+        FeatureBuilder.build_longitude_features(
+            ds["longitude"].values,
+            len(ds["latitude"])
         )
     )
 
@@ -117,6 +122,8 @@ def main():
         train_sin_doy,
         train_cos_doy,
         lat_grid,
+        sin_lon_grid,
+        cos_lon_grid,
         HISTORY,
         FORECAST
     )
@@ -128,6 +135,8 @@ def main():
         val_sin_doy,
         val_cos_doy,
         lat_grid,
+        sin_lon_grid,
+        cos_lon_grid,
         HISTORY,
         FORECAST
     )
@@ -144,7 +153,7 @@ def main():
     ########################################################
 
     model = ForecastCNN(
-        input_channels=HISTORY + 5,
+        input_channels=HISTORY + 7,
         forecast_steps=FORECAST
     ).to(
         DEVICE

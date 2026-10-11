@@ -50,3 +50,15 @@ class FeatureBuilder:
         )
 
         return lat_grid
+
+    @staticmethod
+    def build_longitude_features(longitudes, nlat):
+        lon_rad = np.deg2rad(longitudes)
+
+        sin_lon = np.sin(lon_rad)
+        cos_lon = np.cos(lon_rad)
+
+        sin_grid = np.tile(sin_lon[None, :], (nlat, 1)).astype(np.float32)
+        cos_grid = np.tile(cos_lon[None, :], (nlat, 1)).astype(np.float32)
+
+        return (sin_grid, cos_grid)

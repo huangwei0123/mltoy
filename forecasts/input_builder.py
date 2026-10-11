@@ -126,6 +126,16 @@ def build_input_tensor(
 
     lat = lat_grid[np.newaxis]
 
+    (sin_lon_grid, cos_lon_grid) = (
+        FeatureBuilder.build_longitude_features(
+            ds["longitude"].values,
+            len(ds["latitude"])
+        )
+    )
+
+    sin_lon = sin_lon_grid[np.newaxis]
+    cos_lon = cos_lon_grid[np.newaxis]
+
     if predictor.model_type == "convlstm":
 
         feat_hist = np.empty(
@@ -181,7 +191,9 @@ def build_input_tensor(
                 ch,
                 sd,
                 cd,
-                lat
+                lat,
+                sin_lon,
+                cos_lon
             ],
             axis=0
         )

@@ -4,7 +4,7 @@ HISTORY = 8
 FORECAST = 12
 
 BATCH_SIZE = 16
-EPOCHS = 20
+EPOCHS = 50
 # LR = 1e-3
 LR = 1e-2
 
