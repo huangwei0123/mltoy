@@ -4,68 +4,13 @@ import sys
 
 import numpy as np
 import xarray as xr
+import pandas as pd
 import matplotlib.pyplot as plt
 
 from pathlib import Path
 
-
-##############################################################################
-# METRICS
-##############################################################################
-
-def rmse(pred, truth):
-
-    return np.sqrt(
-        np.mean(
-            (pred - truth) ** 2
-        )
-    )
-
-
-def mae(pred, truth):
-
-    return np.mean(
-        np.abs(pred - truth)
-    )
-
-
-def bias(pred, truth):
-
-    return np.mean(
-        pred - truth
-    )
-
-
-def acc(pred, truth):
-
-    clim = np.mean(
-        truth,
-        axis=0,
-        keepdims=True
-    )
-
-    p_anom = pred - clim
-    t_anom = truth - clim
-
-    num = np.sum(
-        p_anom * t_anom
-    )
-
-    den = np.sqrt(
-        np.sum(
-            p_anom ** 2
-        )
-        *
-        np.sum(
-            t_anom ** 2
-        )
-    )
-
-    if den == 0:
-        return np.nan
-
-    return num / den
-
+import pickle
+from utils.metrics import rmse, mae, acc, bias, get_climatology_field
 
 ##############################################################################
 # MAIN
@@ -82,6 +27,9 @@ def main():
         )
 
         sys.exit(1)
+
+    with open( "checkpoints/climatology.pkl", "rb") as f:
+        climatology = pickle.load(f)
 
     forecast_file = sys.argv[1]
     truth_file = sys.argv[2]
@@ -125,93 +73,46 @@ def main():
     print()
     print("Computing metrics...")
     print()
+    print( f"{'Lead':>5} {'RMSE':>12} {'MAE':>12} {'BIAS':>12} {'ACC':>12}")
+    print("-" * 55)
 
     for lead in range(nlead):
-
         lead_hr = (lead + 1) * 6
 
         p = pred[lead]
         t = obs[lead]
 
-        leads.append(
-            lead_hr
-        )
+        leads.append(lead_hr)
+  
+        valid_time = pd.to_datetime( truth_ds["valid_time"].values[ lead ])
+        clim = get_climatology_field( climatology, valid_time)
 
-        rmse_list.append(
-            rmse(p, t)
-        )
+        r = rmse(p, t)
+        m = mae(p, t)
+        b = bias(p, t)
+        a = acc( p, t, clim)
 
-        mae_list.append(
-            mae(p, t)
-        )
+        print(f"{lead+1:5d} {r:12.4f} {m:12.4f} {b:12.4} {a:12.4f}")
 
-        bias_list.append(
-            bias(p, t)
-        )
-
-        clim = np.mean(
-            obs,
-            axis=0
-        )
-
-        p_anom = p - clim
-        t_anom = t - clim
-
-        num = np.sum(
-            p_anom * t_anom
-        )
-
-        den = np.sqrt(
-            np.sum(
-                p_anom**2
-            )
-            *
-            np.sum(
-                t_anom**2
-            )
-        )
-
-        acc_list.append(
-            num / den
-            if den > 0
-            else np.nan
-        )
+        rmse_list.append(r)
+        mae_list.append(m)
+        bias_list.append(b)
+        acc_list.append(a)
 
     ##########################################################################
     # RMSE / MAE
     ##########################################################################
 
-    plt.figure(
-        figsize=(8, 5)
-    )
+    plt.figure(figsize=(8, 5))
 
-    plt.plot(
-        leads,
-        rmse_list,
-        marker="o",
-        linewidth=2,
-        label="RMSE"
-    )
+    plt.plot(leads, rmse_list, marker="o", linewidth=2, label="RMSE")
 
-    plt.plot(
-        leads,
-        mae_list,
-        marker="s",
-        linewidth=2,
-        label="MAE"
-    )
+    plt.plot(leads, mae_list, marker="s", linewidth=2, label="MAE")
 
-    plt.xlabel(
-        "Forecast Lead (hours)"
-    )
+    plt.xlabel("Forecast Lead (hours)")
+    plt.ylabel("Temperature Error (°C)")
 
-    plt.ylabel(
-        "Temperature Error (°C)"
-    )
-
-    plt.title(
-        "Forecast Error vs Lead Time"
-    )
+    plt.title("Forecast Error vs Lead Time")
 
     plt.grid(True)
 
@@ -219,131 +120,69 @@ def main():
 
     plt.tight_layout()
 
-    outfile = (
-        output_dir /
-        "rmse_mae_vs_lead.png"
-    )
+    outfile = (output_dir / "rmse_mae_vs_lead.png")
 
-    plt.savefig(
-        outfile,
-        dpi=150
-    )
+    plt.savefig(outfile, dpi=150)
 
     plt.show()
     plt.close()
 
-    print(
-        f"Saved {outfile}"
-    )
+    print(f"Saved {outfile}")
 
     ##########################################################################
     # ACC
     ##########################################################################
 
-    plt.figure(
-        figsize=(8, 5)
-    )
+    plt.figure( figsize=(8, 5))
 
-    plt.plot(
-        leads,
-        acc_list,
-        marker="o",
-        linewidth=2,
-        color="darkgreen"
-    )
+    plt.plot(leads, acc_list, marker="o", linewidth=2, color="darkgreen")
 
-    plt.xlabel(
-        "Forecast Lead (hours)"
-    )
+    plt.xlabel("Forecast Lead (hours)")
 
-    plt.ylabel(
-        "ACC"
-    )
+    plt.ylabel("ACC")
 
-    plt.ylim(
-        0.0,
-        1.0
-    )
+    plt.ylim(0.0, 1.0)
 
-    plt.title(
-        "Anomaly Correlation Coefficient"
-    )
-
+    plt.title("Anomaly Correlation Coefficient")
     plt.grid(True)
 
     plt.tight_layout()
 
-    outfile = (
-        output_dir /
-        "acc_vs_lead.png"
-    )
+    outfile = (output_dir / "acc_vs_lead.png")
 
-    plt.savefig(
-        outfile,
-        dpi=150
-    )
+    plt.savefig(outfile, dpi=150)
 
     plt.show()
     plt.close()
 
-    print(
-        f"Saved {outfile}"
-    )
+    print(f"Saved {outfile}")
 
     ##########################################################################
     # Bias
     ##########################################################################
 
-    plt.figure(
-        figsize=(8, 5)
-    )
+    plt.figure(figsize=(8, 5))
 
-    plt.plot(
-        leads,
-        bias_list,
-        marker="o",
-        linewidth=2,
-        color="red"
-    )
+    plt.plot(leads, bias_list, marker="o", linewidth=2, color="red")
 
-    plt.axhline(
-        0,
-        color="black",
-        linestyle="--"
-    )
+    plt.axhline(0, color="black", linestyle="--")
 
-    plt.xlabel(
-        "Forecast Lead (hours)"
-    )
-
-    plt.ylabel(
-        "Bias (°C)"
-    )
-
-    plt.title(
-        "Forecast Bias vs Lead Time"
-    )
+    plt.xlabel("Forecast Lead (hours)")
+    plt.ylabel("Bias (°C)")
+    plt.title("Forecast Bias vs Lead Time")
 
     plt.grid(True)
 
     plt.tight_layout()
 
-    outfile = (
-        output_dir /
-        "bias_vs_lead.png"
-    )
+    outfile = (output_dir / "bias_vs_lead.png")
 
-    plt.savefig(
-        outfile,
-        dpi=150
-    )
+    plt.savefig(outfile, dpi=150)
 
     plt.show()
     plt.close()
 
-    print(
-        f"Saved {outfile}"
-    )
+    print(f"Saved {outfile}")
 
     print()
     

@@ -6,89 +6,35 @@ import numpy as np
 import pandas as pd
 import xarray as xr
 
+import pickle
 
-def rmse(fcst, truth):
-
-    return np.sqrt(
-        np.mean(
-            (fcst - truth) ** 2
-        )
-    )
-
-
-def mae(fcst, truth):
-
-    return np.mean(
-        np.abs(
-            fcst - truth
-        )
-    )
-
-def acc(fcst, truth):
-
-    f = fcst.flatten()
-    t = truth.flatten()
-
-    f = f - f.mean()
-    t = t - t.mean()
-
-    return np.corrcoef( f, t)[0, 1]
+from utils.metrics import rmse, mae, acc, get_climatology_field
 
 
 def main():
 
     parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "--input",
-        required=True,
-        help="ERA5 zarr"
-    )
-
-    parser.add_argument(
-        "--start",
-        required=True,
-        help="YYYYMMDD-HHMM"
-    )
-
-    parser.add_argument(
-        "--forecast",
-        type=int,
-        default=12
-    )
-
+    parser.add_argument("--input", required=True, help="ERA5 zarr")
+    parser.add_argument("--start", required=True, help="YYYYMMDD-HHMM")
+    parser.add_argument("--forecast", type=int, default=12)
+    parser.add_argument("--climatology", required=True)
     args = parser.parse_args()
 
-    ds = xr.open_zarr(
-        args.input
-    )
+    ds = xr.open_zarr( args.input)
 
-    times = pd.to_datetime(
-        ds["valid_time"].values
-    )
+    times = pd.to_datetime(ds["valid_time"].values)
 
-    temp = (
-        ds["t2m"]
-        .values
-        .astype(np.float32)
-    )
+    temp = ( ds["t2m"].values.astype(np.float32))
 
-    init_time = pd.to_datetime(
-        args.start,
-        format="%Y%m%d-%H%M"
-    )
+    init_time = pd.to_datetime(args.start, format="%Y%m%d-%H%M")
 
-    idx = np.where(
-        times == init_time
-    )[0]
-
+    idx = np.where(times == init_time)[0]
     if len(idx) == 0:
-
-        raise ValueError(
-            f"{init_time} not found"
-        )
-
+        raise ValueError(f"{init_time} not found")
     idx = idx[0]
+
+    with open(args.climatology, "rb") as f:
+        climatology = pickle.load(f)
 
     ####################################################
     # Persistence forecast
@@ -104,7 +50,7 @@ def main():
         f"{'ACC':>12}"
     )
 
-    print("-" * 35)
+    print("-" * 55)
 
     rmses = []
     maes = []
@@ -116,7 +62,10 @@ def main():
 
         r = rmse(forecast, truth)
         m = mae(forecast, truth)
-        a = acc(forecast, truth)
+
+        valid_time = times[ idx + lead ]
+        clim = get_climatology_field(climatology, valid_time)
+        a = acc(forecast, truth, clim)
 
         rmses.append(r)
         maes.append(m)

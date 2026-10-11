@@ -9,37 +9,23 @@ import xarray as xr
 
 import matplotlib.pyplot as plt
 
+import pickle
 
-def rmse(fcst, truth):
-
-    return np.sqrt(
-        np.mean(
-            (fcst - truth) ** 2
-        )
-    )
-
-
-def mae(fcst, truth):
-
-    return np.mean(
-        np.abs(fcst - truth)
-    )
-
+from utils.metrics import rmse, mae, acc, get_climatology_field
 
 def main():
 
     parser = argparse.ArgumentParser( description=( "Evaluate forecast against truth"))
-
     parser.add_argument("--forecast", required=True, help="Forecast NetCDF file")
-
     parser.add_argument("--truth", required=True, help="Truth NetCDF file")
-
     parser.add_argument("--outdir", default="forecasts")
-
+    parser.add_argument("--climatology", required=True)
     args = parser.parse_args()
 
-    print(f"Loading forecast: {args.forecast}")
+    with open(args.climatology, "rb") as f:
+        climatology = pickle.load(f)
 
+    print(f"Loading forecast: {args.forecast}")
     print(f"Loading truth: {args.truth}")
 
     fcst_ds = xr.open_dataset(args.forecast)
@@ -70,20 +56,13 @@ def main():
         .astype(np.float32)
     )
 
-    truth = (
-        truth_ds["t2m"]
-        .values
-        .astype(np.float32)
-    )
+    truth = (truth_ds["t2m"].values.astype(np.float32))
 
     ####################################################
     # Match lead times
     ####################################################
 
-    nlead = min(
-        fcst.shape[0],
-        truth.shape[0]
-    )
+    nlead = min(fcst.shape[0], truth.shape[0])
 
     fcst = fcst[:nlead]
     truth = truth[:nlead]
@@ -95,37 +74,27 @@ def main():
     results = []
 
     print()
-    print(
-        f"{'Lead':>5} "
-        f"{'RMSE':>12} "
-        f"{'MAE':>12}"
-    )
+    print( f"{'Lead':>5} {'RMSE':>12} {'MAE':>12} {'ACC':>12}")
 
-    print("-" * 35)
+    print("-" * 55)
 
     for lead in range(nlead):
 
-        r = rmse(
-            fcst[lead],
-            truth[lead]
-        )
+        r = rmse(fcst[lead], truth[lead])
+        m = mae(fcst[lead], truth[lead])
 
-        m = mae(
-            fcst[lead],
-            truth[lead]
-        )
+        valid_time = pd.to_datetime(truth_ds["valid_time"].values[ lead ])
+        clim = get_climatology_field(climatology, valid_time)
+        a = acc(fcst[lead], truth[lead], clim)
 
-        print(
-            f"{lead+1:5d} "
-            f"{r:12.4f} "
-            f"{m:12.4f}"
-        )
+        print(f"{lead+1:5d} {r:12.4f} {m:12.4f} {a:12.4f}")
 
         results.append(
             {
                 "lead": lead + 1,
                 "rmse": r,
                 "mae": m,
+                "acc": a,
             }
         )
 
@@ -133,33 +102,19 @@ def main():
     # Summary
     ####################################################
 
-    rmse_mean = np.mean(
-        [r["rmse"] for r in results]
-    )
-
-    mae_mean = np.mean(
-        [r["mae"] for r in results]
-    )
+    rmse_mean = np.mean([r["rmse"] for r in results])
+    mae_mean = np.mean([r["mae"] for r in results])
 
     print()
-    print(
-        f"Mean RMSE = "
-        f"{rmse_mean:.4f}"
-    )
+    print(f"Mean RMSE = {rmse_mean:.4f}")
 
-    print(
-        f"Mean MAE  = "
-        f"{mae_mean:.4f}"
-    )
+    print(f"Mean MAE  = {mae_mean:.4f}")
 
     ####################################################
     # Save CSV
     ####################################################
 
-    os.makedirs(
-        args.outdir,
-        exist_ok=True
-    )
+    os.makedirs(args.outdir, exist_ok=True)
 
     model_name = os.path.splitext(
         os.path.basename(
@@ -183,9 +138,7 @@ def main():
     # Plot RMSE
     ####################################################
 
-    plt.figure(
-        figsize=(8, 4)
-    )
+    plt.figure(figsize=(8, 4))
 
     plt.plot(
         [r["lead"] for r in results],
@@ -195,39 +148,22 @@ def main():
 
     plt.grid(True)
 
-    plt.xlabel(
-        "Forecast Lead"
-    )
+    plt.xlabel("Forecast Lead")
 
-    plt.ylabel(
-        "RMSE (K)"
-    )
+    plt.ylabel("RMSE (K)")
 
-    plt.title(
-        f"RMSE vs Lead Time\n"
-        f"{model_name}"
-    )
+    plt.title(f"RMSE vs Lead Time: {model_name}")
 
-    png_file = os.path.join(
-        args.outdir,
-        f"{model_name}_rmse.png"
-    )
+    png_file = os.path.join(args.outdir, f"{model_name}_rmse.png")
 
-    plt.savefig(
-        png_file,
-        bbox_inches="tight"
-    )
+    plt.savefig(png_file, bbox_inches="tight")
 
     plt.close()
 
     print()
-    print(
-        f"Saved metrics: {csv_file}"
-    )
+    print(f"Saved metrics: {csv_file}")
 
-    print(
-        f"Saved plot: {png_file}"
-    )
+    print(f"Saved plot: {png_file}")
 
 
 if __name__ == "__main__":
