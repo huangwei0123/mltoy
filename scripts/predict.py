@@ -11,81 +11,35 @@ from pandas import Timedelta
 from forecasts.predictor import Predictor
 from forecasts.input_builder import build_input_tensor
 from forecasts.netcdf_writer import save_forecast
-
+from utils.config import Config
 
 def main():
 
     parser = argparse.ArgumentParser()
-
-    parser.add_argument(
-        "--checkpoint",
-        required=True
-    )
-
-    parser.add_argument(
-        "--climatology",
-        required=True
-    )
-
-    parser.add_argument(
-        "--input",
-        required=True
-    )
-
-    parser.add_argument(
-        "--output",
-        required=True
-    )
-
-    parser.add_argument(
-        "--device",
-        default="cpu"
-    )
-
-    parser.add_argument(
-        "--start",
-        default=None
-    )
-
+    parser.add_argument("--config", default="configs/cnn.yaml")
+    parser.add_argument("--checkpoint", required=True)
+    parser.add_argument("--climatology", required=True)
+    parser.add_argument("--input", required=True)
+    parser.add_argument("--output", required=True)
+    parser.add_argument("--device", default="cpu")
+    parser.add_argument("--start", default=None)
     args = parser.parse_args()
 
-    predictor = Predictor(
-        args.checkpoint,
-        device=args.device
-    )
+    cfg = Config(args.config)
 
-    print(
-        "predictor mean =",
-        predictor.mean
-    )
+    predictor = Predictor(args.checkpoint, device=args.device)
 
-    print(
-        "predictor std =",
-        predictor.std
-    )
+    print("predictor mean =", predictor.mean)
+    print("predictor std =", predictor.std)
 
-    ds = xr.open_zarr(
-        args.input
-    )
+    ds = xr.open_zarr(args.input)
 
-    with open(
-        args.climatology,
-        "rb"
-    ) as f:
-
+    with open(args.climatology, "rb") as f:
         climatology = pickle.load(f)
 
-    x = build_input_tensor(
-        ds,
-        predictor,
-        args.start,
-        climatology
-    )
+    x = build_input_tensor(ds, predictor, args.start, climatology)
 
-    print(
-        "input shape:",
-        x.shape
-    )
+    print("input shape:", x.shape)
 
     ####################################################
     # Predict normalized anomaly
@@ -103,62 +57,29 @@ def main():
     # Denormalize anomaly
     ####################################################
 
-    anomaly_forecast = (
-        anomaly_forecast
-        * predictor.std
-        + predictor.mean
-    )
+    anomaly_forecast = (anomaly_forecast * predictor.std + predictor.mean)
 
-    print(
-        "physical anomaly min/max:",
-        anomaly_forecast.min(),
-        anomaly_forecast.max()
-    )
+    print("physical anomaly min/max:", anomaly_forecast.min(), anomaly_forecast.max())
 
     ####################################################
     # Add climatology
     ####################################################
 
-    start_time = pd.to_datetime(
-        args.start,
-        format="%Y%m%d-%H%M"
-    )
+    start_time = pd.to_datetime(args.start, format="%Y%m%d-%H%M")
 
     temperature_forecast = anomaly_forecast.copy()
 
-    for lead in range(
-        predictor.forecast
-    ):
-
-        valid_time = (
-            start_time
-            + Timedelta(
-                hours=6 * (lead + 1)
-            )
-        )
+    for lead in range(predictor.forecast):
+        valid_time = (start_time + Timedelta( hours=6 * (lead + 1)))
 
         doy = valid_time.dayofyear
 
-        cycle = (
-            valid_time.hour // 6
-        )
+        cycle = (valid_time.hour // 6)
+        temperature_forecast[lead] += (climatology[ (doy, cycle) ])
 
-        temperature_forecast[lead] += (
-            climatology[
-                (doy, cycle)
-            ]
-        )
+    print("temperature_forecast shape =", temperature_forecast.shape)
 
-    print(
-        "temperature_forecast shape =",
-        temperature_forecast.shape
-    )
-
-    print(
-        "temperature_forecast min/max:",
-        temperature_forecast.min(),
-        temperature_forecast.max()
-    )
+    print("temperature_forecast min/max:", temperature_forecast.min(), temperature_forecast.max())
 
     ####################################################
     # Save physical temperature

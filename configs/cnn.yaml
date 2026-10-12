@@ -1,0 +1,21 @@
+dataset:
+  path: data/era5-t2m-5deg.zarr
+
+model:
+  name: cnn
+  history: 8
+  forecast: 12
+
+training:
+  batch_size: 16
+  epochs: 50
+  learning_rate: 0.01
+  device: cpu
+
+checkpoint:
+# resume: null
+  resume: checkpoints/t2m_cnn_best.pt
+
+output:
+  checkpoint_dir: checkpoints
+  log_dir: logs

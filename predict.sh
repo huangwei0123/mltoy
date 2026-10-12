@@ -10,16 +10,17 @@ if [[ ! -f data/truth.nc ]]; then
         --output data/truth.nc
 fi
 
-epoch=18
+epoch=1
 #model_type=unet
 model_type=cnn
 #model_type=fno
 #model_type=graphcast
 #model_type=convlstm
-ckpt_stamp=20261010_161112
+ckpt_stamp=20261012_140537
 fcst_stamp=20260901-0000
 ckpt_file=checkpoints/t2m_${model_type}_epoch${epoch}_${ckpt_stamp}.pt
-output=output/t2m_${fcst_stamp}_${model_type}_${ckpt_stamp}.nc
+#ckpt_file=checkpoints/skip_t2m_cnn_epoch38_20261012_104251.pt
+output=output/t2m_${fcst_stamp}_${model_type}_epoch${epoch}_${ckpt_stamp}.nc
 
 if [[ ! -f ${output} ]]; then
     python -m scripts.predict \

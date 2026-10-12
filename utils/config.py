@@ -1,11 +1,22 @@
-DATASET = "data/era5-t2m-5deg.zarr"
+import yaml
 
-HISTORY = 8
-FORECAST = 12
 
-BATCH_SIZE = 16
-EPOCHS = 50
-# LR = 1e-3
-LR = 1e-2
+class Config:
 
-DEVICE = "cpu"
+    def __init__(self, filename):
+
+        with open(filename, "r") as f:
+            cfg = yaml.safe_load(f)
+
+        self.dataset = cfg["dataset"]
+
+        self.model = cfg["model"]
+
+        self.training = cfg["training"]
+
+        self.checkpoint = cfg.get(
+            "checkpoint",
+            {}
+        )
+
+        self.output = cfg["output"]

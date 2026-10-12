@@ -1,9 +1,6 @@
 import torch
 import torch.nn as nn
 
-from utils.config import FORECAST
-
-
 class ConvLSTMCell(nn.Module):
 
     def __init__(
@@ -81,7 +78,7 @@ class ForecastConvLSTM(nn.Module):
         self,
         input_channels=6,
         hidden_dim=64,
-        forecast_steps=FORECAST,
+        forecast_steps=12,
     ):
         super().__init__()
 
