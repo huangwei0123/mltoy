@@ -186,6 +186,10 @@ def main(yamlfile="configs/cnn.yaml"):
             optimizer.load_state_dict(ckpt["optimizer_state_dict"])
             logger.info("Optimizer state restored")
 
+        if "schedular_state_dict" in ckpt:
+            schedularr.load_state_dict(ckpt["schedular_state_dict"])
+            logger.info("Schedular state restored")
+
 ########################################################
 # Training
 ########################################################
@@ -236,12 +240,20 @@ def main(yamlfile="configs/cnn.yaml"):
             checkpoint_file = f"checkpoints/t2m_{MODEL_TYPE}_epoch{epoch+1}_{new_stamp}.pt"
         else:
             checkpoint_file = f"checkpoints/skip_t2m_{MODEL_TYPE}_epoch{epoch+1}_{new_stamp}.pt"
+            scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+                optimizer,
+                mode="min",
+                factor=0.5,
+                patience=2,
+                min_lr=1e-6,
+            )
 
         torch.save(
             {
                 "model_type": f"{MODEL_TYPE}",
                 "model_state_dict": model.state_dict(),
                 "optimizer_state_dict": optimizer.state_dict(),
+                "scheduler_state_dict": scheduler.state_dict(),
                 "mean": float(mean),
                 "std": float(std),
                 "history": int(cfg.model["history"]),

@@ -78,5 +78,13 @@ def main():
     print(f"Mean MAE  = " f"{np.mean(maes):.4f}")
     print(f"Mean ACC  = " f"{np.mean(accs):.4f}")
 
+    np.savez(
+        "data/persistence_metrics.npz",
+        rmse=np.asarray(rmses),
+        mae=np.asarray(maes),
+        acc=np.asarray(accs)
+    )
+
+
 if __name__ == "__main__":
     main()
